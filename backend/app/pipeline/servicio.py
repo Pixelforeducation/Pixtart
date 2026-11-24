@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.llm.base import ClienteLLM, ErrorLLM, Uso
 from app.models.cursos import Curso, Documento, Nivel, Pregunta, Seccion, Trabajo
 from app.pipeline import prompts
+from app.pipeline.barajado import barajar
 from app.pipeline.dependencias import clases_limite, mensaje_limite, servicios
 from app.pipeline.extraccion import aplicar_ocr, extraer_texto, paginas_escaneadas
 from app.pipeline.fragmentos import dividir, fragmentos_en_rango
@@ -178,6 +179,7 @@ def _crear_secciones(db: Session, curso: Curso, estructura: dict) -> None:
 
 def _pregunta_desde(d: dict, orden: int) -> Pregunta:
     datos = {k: d.get(k) for k in CAMPOS_PREGUNTA}
+    datos = barajar(datos)
     datos["explicacion"] = datos["explicacion"] or ""
     datos["enunciado"] = datos["enunciado"] or ""
     return Pregunta(orden=orden, **datos)
