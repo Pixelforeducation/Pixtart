@@ -3,11 +3,12 @@
 El juego no conoce las tablas del pipeline: habla con `FuenteCursos`. Hay dos implementaciones:
 - `FuenteCursosMemoria`: para tests.
 - `FuenteCursosSQL`: importa `app.models.cursos` de forma perezosa. Supone los nombres del
-  contrato: `Curso(id, titulo, tema, estado, usuario_id, config?)`, `Seccion(id, curso_id, titulo,
-  orden)`, `Nivel(id, seccion_id, titulo, orden, es_calentamiento)` y `Pregunta(id, nivel_id,
-  tipo, enunciado, opciones, respuesta, tolerancia, explicacion, pista, dificultad, tiempo_s,
-  valida)`. Atributos opcionales que se leen con `getattr`: `Curso.config` (dict con
-  `tiempos_por_tipo` y `repaso`), `Nivel.es_final`, `Nivel.es_jefe`.
+  contrato (verificados contra `app/models/cursos.py`): `Curso(id, usuario_id, titulo, tema,
+  estado, config)`, `Seccion(id, curso_id, titulo, orden)`, `Nivel(id, seccion_id, titulo, orden,
+  es_calentamiento)` y `Pregunta(id, nivel_id, orden, tipo, enunciado, opciones, respuesta,
+  tolerancia, explicacion, pista, dificultad, tiempo_s, valida)`. Se leen con `getattr` (aún no
+  existen): `Nivel.es_final` y `Nivel.es_jefe` (por defecto False). `Curso.config` aporta
+  `tiempos_por_tipo` y `repaso`.
 
 Todo método recibe `usuario_id` y devuelve None si el curso no existe, no es del usuario o no
 está publicado (la API responde 404).
@@ -184,7 +185,12 @@ class FuenteCursosSQL:
         if self.curso_de_nivel(db, usuario_id, nivel_id) is None:
             return []
         m = self._m()
-        filas = db.query(m.Pregunta).filter(m.Pregunta.nivel_id == nivel_id).all()
+        filas = (
+            db.query(m.Pregunta)
+            .filter(m.Pregunta.nivel_id == nivel_id)
+            .order_by(m.Pregunta.orden)
+            .all()
+        )
         res = []
         for p in filas:
             if not getattr(p, "valida", True):
