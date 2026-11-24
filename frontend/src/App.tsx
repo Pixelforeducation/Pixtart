@@ -1,4 +1,5 @@
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
+import NivelFinal from "./nivel-final";
 import { useEffect } from "react";
 import { useEstadoJuego, useSesion } from "./contexto";
 import { Engrane, IconoNav, Moneda } from "./components/Iconos";
@@ -75,6 +76,7 @@ export function App() {
         <Route path="crear/progreso/:id" element={<ProgresoTrabajo />} />
         <Route path="cursos/:id/revisar" element={<Revision />} />
         <Route path="jugar/:nivelId" element={<Jugar />} />
+        <Route path="final/:nivelId" element={<NivelFinal />} />
         <Route path="perfil" element={<Perfil />} />
         <Route path="tienda" element={<Tienda />} />
         <Route path="ajustes" element={<Ajustes />} />
