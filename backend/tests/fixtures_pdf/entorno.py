@@ -88,3 +88,12 @@ def subir(client, pdf: bytes, config: dict | None = None, nombre="apuntes.pdf"):
         files={"pdf": (nombre, pdf, "application/pdf")},
         data={"config": json.dumps(config or CONFIG)},
     )
+
+
+def subir_varios(client, archivos: list[tuple[str, bytes]], config: dict | None = None):
+    """Varios PDFs con el campo multipart `pdf` repetido."""
+    return client.post(
+        "/api/cursos",
+        files=[("pdf", (nombre, datos, "application/pdf")) for nombre, datos in archivos],
+        data={"config": json.dumps(config or CONFIG)},
+    )

@@ -61,6 +61,8 @@ class Nivel(Base):
     resumen: Mapped[str] = mapped_column(Text, default="")
     pagina_inicio: Mapped[int | None] = mapped_column(Integer, nullable=True)
     pagina_fin: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Nombre (saneado) del documento del que sale el nivel; None si abarca varios o no se supo.
+    documento: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     seccion: Mapped[Seccion] = relationship(back_populates="niveles")
     preguntas: Mapped[list["Pregunta"]] = relationship(
@@ -85,6 +87,7 @@ class Pregunta(TimestampMixin, Base):
     tiempo_s: Mapped[int] = mapped_column(Integer, default=30)
     tiempo_manual: Mapped[bool] = mapped_column(Boolean, default=False)
     fuente_pagina: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fuente_documento: Mapped[str | None] = mapped_column(String(255), nullable=True)
     valida: Mapped[bool] = mapped_column(Boolean, default=False)
     problemas: Mapped[list[str]] = mapped_column(JSON, default=list)
 
@@ -113,12 +116,20 @@ class Trabajo(TimestampMixin, Base):
 
 
 class Documento(TimestampMixin, Base):
+    """Un PDF subido. Un trabajo de generación puede tener varios (uno por archivo, `orden`
+    = posición en la petición). El archivo se borra del almacén al terminar; la fila queda."""
+
     __tablename__ = "documentos"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=nuevo_id)
     usuario_id: Mapped[str] = mapped_column(String(36), index=True)
     curso_id: Mapped[str] = mapped_column(ForeignKey("cursos.id", ondelete="CASCADE"), index=True)
-    nombre: Mapped[str] = mapped_column(String(255), default="")
+    # None en filas antiguas (un solo PDF por curso, anterior a los envíos múltiples).
+    trabajo_id: Mapped[str | None] = mapped_column(
+        ForeignKey("trabajos.id", ondelete="CASCADE"), index=True, nullable=True
+    )
+    orden: Mapped[int] = mapped_column(Integer, default=0)
+    nombre: Mapped[str] = mapped_column(String(255), default="")  # nombre original saneado
     sha256: Mapped[str] = mapped_column(String(64), index=True)
     tamano: Mapped[int] = mapped_column(Integer)
     paginas: Mapped[int] = mapped_column(Integer)

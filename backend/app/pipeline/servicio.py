@@ -3,7 +3,9 @@
 Estados: subiendo → leyendo → ocr → analizando → generando → validando → listo | error.
 Idempotencia: la estructura se guarda como checkpoint en `Trabajo.datos`, las secciones se crean
 una sola vez y un nivel que ya tiene preguntas no se vuelve a generar; un trabajo en `listo` o
-`error` no se reprocesa. El PDF se borra al terminar (éxito o error).
+`error` no se reprocesa. Los PDFs (uno o varios `Documento` del trabajo) se borran todos al
+terminar (éxito o error). Cada PDF se lee y pasa por OCR por separado; los fragmentos conservan
+(documento, página) y nunca mezclan documentos.
 """
 
 import logging
@@ -37,6 +39,7 @@ CAMPOS_PREGUNTA = (
     "pista",
     "dificultad",
     "fuente_pagina",
+    "fuente_documento",
 )
 
 
@@ -103,12 +106,19 @@ def _ejecutar(db: Session, t: Trabajo, cuerpo) -> None:
 
 # ---------------- estructura ----------------
 
-def normalizar_estructura(estructura: dict, max_niveles: int) -> dict:
-    """Garantiza un calentamiento al inicio de cada sección (y solo ahí) y acota niveles."""
+def normalizar_estructura(
+    estructura: dict, max_niveles: int, documentos: list[str] | None = None
+) -> dict:
+    """Garantiza un calentamiento al inicio de cada sección (y solo ahí) y acota niveles.
+    Con `documentos` (nombres válidos), el `documento` de cada nivel se valida: si no es uno
+    de ellos queda None; con un solo documento, todos los niveles son de ese."""
     secciones = []
     restantes = max_niveles
     for s in estructura.get("secciones", []):
         niveles = [dict(n) for n in s.get("niveles", [])]
+        if documentos is not None:
+            for n in niveles:
+                n["documento"] = resolver_documento(n.get("documento"), documentos)
         if not niveles or restantes <= 0:
             continue
         calent = next((n for n in niveles if n.get("es_calentamiento")), None)
@@ -120,6 +130,9 @@ def normalizar_estructura(estructura: dict, max_niveles: int) -> dict:
                 "pagina_inicio": primero.get("pagina_inicio"),
                 "pagina_fin": niveles[-1].get("pagina_fin"),
             }
+            docs = {n.get("documento") for n in niveles}
+            if len(docs) == 1 and None not in docs:
+                calent["documento"] = docs.pop()
         else:
             niveles.remove(calent)
         calent["es_calentamiento"] = True
@@ -135,6 +148,19 @@ def normalizar_estructura(estructura: dict, max_niveles: int) -> dict:
         "tema": estructura.get("tema") or "",
         "secciones": secciones,
     }
+
+
+def resolver_documento(nombre: str | None, documentos: list[str]) -> str | None:
+    """`nombre` si es uno de `documentos` (tolerando mayúsculas/espacios); con un solo
+    documento, ese; si no, None."""
+    if nombre:
+        clave = nombre.strip().casefold()
+        for d in documentos:
+            if d.casefold() == clave:
+                return d
+    if len(documentos) == 1:
+        return documentos[0]
+    return None
 
 
 def repartir(pesos: list[float], total: int) -> list[int]:
@@ -168,6 +194,7 @@ def _crear_secciones(db: Session, curso: Curso, estructura: dict) -> None:
                     resumen=n.get("resumen", ""),
                     pagina_inicio=n.get("pagina_inicio"),
                     pagina_fin=n.get("pagina_fin"),
+                    documento=n.get("documento"),
                 )
             )
         curso.secciones.append(sec)
@@ -177,8 +204,14 @@ def _crear_secciones(db: Session, curso: Curso, estructura: dict) -> None:
     db.commit()
 
 
-def _pregunta_desde(d: dict, orden: int) -> Pregunta:
+def _pregunta_desde(
+    d: dict, orden: int, documentos: list[str] | None = None, por_defecto: str | None = None
+) -> Pregunta:
     datos = {k: d.get(k) for k in CAMPOS_PREGUNTA}
+    if documentos is not None:
+        datos["fuente_documento"] = (
+            resolver_documento(datos.get("fuente_documento"), documentos) or por_defecto
+        )
     datos = barajar(datos)
     datos["explicacion"] = datos["explicacion"] or ""
     datos["enunciado"] = datos["enunciado"] or ""
@@ -214,53 +247,99 @@ def validar_curso(db: Session, curso: Curso) -> int:
 
 # ---------------- tareas ----------------
 
+def documentos_del_trabajo(db: Session, t: Trabajo) -> list[Documento]:
+    docs = db.scalars(
+        select(Documento).where(Documento.trabajo_id == t.id).order_by(Documento.orden)
+    ).all()
+    if docs:
+        return list(docs)
+    # filas anteriores a los envíos múltiples: un Documento por curso, sin trabajo_id
+    doc = db.scalar(
+        select(Documento)
+        .where(Documento.curso_id == t.curso_id, Documento.trabajo_id.is_(None))
+        .order_by(Documento.created_at.desc())
+    )
+    return [doc] if doc else []
+
+
+def borrar_documentos(db: Session, t: Trabajo, docs: list[Documento], almacen) -> None:
+    for doc in docs:
+        if doc.borrado_en is not None:
+            continue
+        try:
+            almacen.borrar(doc.ruta)
+        except Exception:  # noqa: BLE001
+            log.exception("no se pudo borrar un PDF del trabajo %s", t.id)
+        else:
+            doc.borrado_en = datetime.now(UTC)
+    db.commit()
+
+
 def procesar_curso(db: Session, trabajo_id: str) -> None:
     t = db.get(Trabajo, trabajo_id)
     if t is None or t.estado in ("listo", "error"):
         return
     curso = db.get(Curso, t.curso_id)
-    doc = db.scalar(
-        select(Documento)
-        .where(Documento.curso_id == t.curso_id)
-        .order_by(Documento.created_at.desc())
-    )
+    docs = documentos_del_trabajo(db, t)
     almacen = servicios.almacen()
     avisos: list[str] = []
 
     def cuerpo() -> None:
         llm = _cliente(db, t.usuario_id)
         config = curso.config
-        _estado(db, t, "leyendo", 5, "Leyendo tus apuntes…")
-        if doc is None or doc.borrado_en is not None:
+        if not docs or any(d.borrado_en is not None for d in docs):
             raise ErrorPipeline("El PDF ya no está disponible; súbelo de nuevo.")
-        try:
-            datos = almacen.leer(doc.ruta)
-        except FileNotFoundError as e:
-            raise ErrorPipeline("El PDF ya no está disponible; súbelo de nuevo.") from e
-        paginas = extraer_texto(datos)
-        if paginas_escaneadas(paginas):
-            _estado(db, t, "ocr", 15, "Reconociendo texto de páginas escaneadas…")
-            avisos.extend(aplicar_ocr(datos, paginas, servicios.obtener_ocr()))
-        del datos
-        fragmentos = dividir(paginas)
+        nombres = [d.nombre for d in docs]
+        varios = len(docs) > 1
+        fragmentos = []
+        sin_texto = []
+        for i, doc in enumerate(docs):
+            cuenta = f" ({i + 1} de {len(docs)})" if varios else ""
+            base = 5 + int(15 * i / len(docs))
+            _estado(db, t, "leyendo", base, f"Leyendo {doc.nombre}{cuenta}…")
+            try:
+                datos = almacen.leer(doc.ruta)
+            except FileNotFoundError as e:
+                raise ErrorPipeline(
+                    f"El PDF «{doc.nombre}» ya no está disponible; súbelo de nuevo."
+                ) from e
+            paginas = extraer_texto(datos)
+            if paginas_escaneadas(paginas):
+                _estado(
+                    db, t, "ocr", base + 1,
+                    f"Reconociendo texto de páginas escaneadas de {doc.nombre}{cuenta}…",
+                )
+                for aviso in aplicar_ocr(datos, paginas, servicios.obtener_ocr()):
+                    avisos.append(f"{doc.nombre}: {aviso}" if varios else aviso)
+            del datos
+            propios = dividir(paginas, documento=doc.nombre)
+            if not propios:
+                sin_texto.append(doc.nombre)
+            fragmentos.extend(propios)
         if not fragmentos:
             raise ErrorPipeline(
                 "No se encontró texto en el PDF (¿está escaneado y sin OCR disponible?)."
+                if not varios
+                else "No se encontró texto en ninguno de los PDFs "
+                "(¿están escaneados y sin OCR disponible?)."
             )
+        if sin_texto:
+            avisos.append(f"Sin texto legible, se omitió: {', '.join(sin_texto)}.")
 
         _estado(db, t, "analizando", 25, "Organizando el curso en secciones y niveles…")
         max_niveles = max(2, config["num_preguntas"] // 3)
         estructura = (t.datos or {}).get("estructura")
         if estructura is None:
-            texto = "\n\n".join(f.como_texto() for f in fragmentos)
             bruta = _llamar(
                 db,
                 t,
                 llm,
-                prompts.mensajes_estructura(texto, config, max_niveles),
+                prompts.mensajes_estructura(
+                    prompts.agrupar_fragmentos(fragmentos), config, max_niveles
+                ),
                 prompts.ESQUEMA_ESTRUCTURA,
             )
-            estructura = normalizar_estructura(bruta, max_niveles)
+            estructura = normalizar_estructura(bruta, max_niveles, nombres)
             t.datos = {**(t.datos or {}), "estructura": estructura}
             db.commit()
         if not curso.secciones:
@@ -277,7 +356,11 @@ def procesar_curso(db: Session, trabajo_id: str) -> None:
             if nivel.preguntas:  # checkpoint: ya generado en un intento anterior
                 continue
             contexto = fragmentos_en_rango(
-                fragmentos, nivel.pagina_inicio, nivel.pagina_fin, TOKENS_CONTEXTO_NIVEL
+                fragmentos,
+                nivel.pagina_inicio,
+                nivel.pagina_fin,
+                TOKENS_CONTEXTO_NIVEL,
+                nivel.documento,
             )
             dificultad = config["dificultad"]
             if nivel.es_calentamiento:
@@ -287,7 +370,7 @@ def procesar_curso(db: Session, trabajo_id: str) -> None:
                 t,
                 llm,
                 prompts.mensajes_preguntas(
-                    "\n\n".join(f.como_texto() for f in contexto),
+                    prompts.agrupar_fragmentos(contexto),
                     config,
                     sec.titulo,
                     nivel.titulo,
@@ -296,11 +379,14 @@ def procesar_curso(db: Session, trabajo_id: str) -> None:
                     dificultad,
                     nivel.es_calentamiento,
                     hechas,
+                    nivel.documento,
                 ),
                 prompts.ESQUEMA_PREGUNTAS,
             )
+            en_contexto = list(dict.fromkeys(f.documento for f in contexto))
+            por_defecto = nivel.documento or (en_contexto[0] if len(en_contexto) == 1 else None)
             for orden, d in enumerate(resp["preguntas"][:cuota]):
-                nivel.preguntas.append(_pregunta_desde(d, orden))
+                nivel.preguntas.append(_pregunta_desde(d, orden, nombres, por_defecto))
                 hechas.append(d.get("enunciado") or "")
             db.commit()
 
@@ -316,16 +402,10 @@ def procesar_curso(db: Session, trabajo_id: str) -> None:
     try:
         _ejecutar(db, t, cuerpo)
     finally:
-        # Se borra al terminar (listo o error). Si el worker muere a mitad (estado activo),
-        # se conserva para que el reintento de Celery (acks_late) pueda continuar.
-        if doc is not None and doc.borrado_en is None and t.estado in ("listo", "error"):
-            try:
-                almacen.borrar(doc.ruta)
-            except Exception:  # noqa: BLE001
-                log.exception("no se pudo borrar el PDF del trabajo %s", t.id)
-            else:
-                doc.borrado_en = datetime.now(UTC)
-                db.commit()
+        # Se borran al terminar (listo o error). Si el worker muere a mitad (estado activo),
+        # se conservan para que el reintento de Celery (acks_late) pueda continuar.
+        if t.estado in ("listo", "error"):
+            borrar_documentos(db, t, docs, almacen)
 
 
 def regenerar_pregunta(
@@ -344,6 +424,16 @@ def regenerar_pregunta(
         _estado(db, t, "generando", 30, "Generando una nueva versión de la pregunta…")
         nivel = p.nivel
         contexto = f"Sección: {nivel.seccion.titulo}\nNivel: {nivel.titulo}\n{nivel.resumen}"
+        if nivel.documento:
+            contexto = f"Documento: {nivel.documento}\n{contexto}"
+        nombres = [
+            d.nombre
+            for d in db.scalars(
+                select(Documento)
+                .where(Documento.curso_id == curso.id)
+                .order_by(Documento.created_at, Documento.orden)
+            )
+        ]
         otras = [q.enunciado for q in preguntas_del_curso(curso) if q.id != p.id]
         resp = _llamar(
             db,
@@ -354,7 +444,9 @@ def regenerar_pregunta(
             ),
             prompts.ESQUEMA_PREGUNTA_UNICA,
         )
-        nueva = _pregunta_desde(resp["pregunta"], p.orden)
+        nueva = _pregunta_desde(
+            resp["pregunta"], p.orden, nombres or None, nivel.documento or p.fuente_documento
+        )
         for k in CAMPOS_PREGUNTA:
             setattr(p, k, getattr(nueva, k))
         p.tiempo_manual = False

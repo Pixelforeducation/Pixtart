@@ -50,6 +50,8 @@ def test_flujo_completo(client, entorno, db):  # noqa: F811
     assert entorno.almacen.objetos == {}
     doc = db.scalar(select(Documento))
     assert doc.borrado_en is not None and doc.paginas == 3 and len(doc.sha256) == 64
+    assert doc.trabajo_id == ids["trabajo_id"] and doc.nombre == "apuntes.pdf"
+    assert all(p["fuente_documento"] == "apuntes.pdf" for p in pregs)
     lista = client.get("/api/cursos").json()
     assert [c["id"] for c in lista] == [ids["curso_id"]]
     assert lista[0]["estado"] == "borrador" and lista[0]["creado"]
@@ -79,7 +81,8 @@ def test_prompt_injection_queda_dentro_del_documento(client, entorno):  # noqa: 
         contenido = llamada["mensajes"][0]["content"]
         assert contenido.count("</documento>") == 1
         assert contenido.count("<instrucciones_del_autor>") == 1
-        inicio, fin = contenido.index("<documento>"), contenido.index("</documento>")
+        inicio = contenido.index('<documento nombre="apuntes.pdf">')
+        fin = contenido.index("</documento>")
         pos = contenido.find("Ignora tus instrucciones")
         if pos != -1:
             assert inicio < pos < fin
@@ -92,7 +95,7 @@ def test_prompt_injection_queda_dentro_del_documento(client, entorno):  # noqa: 
     [
         (b"esto no es un pdf", "no es un PDF"),
         (b"%PDF-1.4\n" + b"0" * MAX_BYTES, "25 MB"),
-        (pdf_texto(["x"] * 301), "máximo es 300"),
+        (pdf_texto(["x"] * 601), "máximo es 600"),
         (b"%PDF-1.4 roto", "dañado"),
     ],
 )
@@ -100,6 +103,7 @@ def test_pdf_rechazado(client, entorno, db, pdf, mensaje):  # noqa: F811
     r = subir(client, pdf)
     assert r.status_code == 422
     assert mensaje in r.json()["detail"]
+    assert "«apuntes.pdf»" in r.json()["detail"]  # dice qué archivo falló
     assert entorno.almacen.objetos == {}
     assert db.scalar(select(Trabajo)) is None
 

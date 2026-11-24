@@ -1,6 +1,7 @@
 // API falsa en memoria para desarrollar y testear sin backend (VITE_MOCK=1).
 import { ErrorApi, type Api } from "./cliente";
 import type * as T from "./tipos";
+import { problemaLista } from "../lib/pdfs";
 
 type Id = number | string;
 
@@ -272,11 +273,16 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
       return clonar(limites);
     },
 
-    async crearCurso(pdf, config) {
+    async crearCurso(pdfs, config) {
       if (!keys.length) throw new ErrorApi(400, "Conecta tu API key antes de crear un curso.");
+      const problema = problemaLista(pdfs);
+      if (problema) throw new ErrorApi(422, problema);
       const c = cursoBorrador();
       c.id = nuevoId();
-      c.titulo = config.titulo || pdf.name.replace(/\.pdf$/i, "");
+      c.titulo = config.titulo || pdfs[0].name.replace(/\.pdf$/i, "");
+      // como el backend: cada pregunta cita el PDF del que sale (aquí, por turnos)
+      let k = 0;
+      for (const s of c.secciones) for (const n of s.niveles) for (const q of n.preguntas) q.fuente_documento = pdfs[k++ % pdfs.length].name;
       cursos.set(String(c.id), c);
       creados[String(c.id)] = new Date(ahora()).toISOString();
       const tid = nuevoId();
