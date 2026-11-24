@@ -4,6 +4,7 @@ import os
 
 os.environ.setdefault("DATABASE_URL", "sqlite+pysqlite:///:memory:")
 os.environ.setdefault("CELERY_EAGER", "true")
+os.environ.setdefault("JWT_SECRET", "secreto-de-pruebas-de-al-menos-32-bytes-0123456789")
 os.environ.setdefault("MASTER_KEY", "x2Q9yJ0h7G8nqH4dYw6F1u3mBvN5cLzKpR2sT8aE0iQ=")
 
 import pytest  # noqa: E402
