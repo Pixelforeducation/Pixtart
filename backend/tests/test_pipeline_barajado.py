@@ -33,3 +33,17 @@ def test_determinista_y_tolerante_a_formas_raras():
     raro = {"tipo": "ordering", "enunciado": "x", "opciones": ["a", "b"], "respuesta": [0, 0]}
     assert barajar(raro) is raro
     assert barajar({"tipo": "numeric", "respuesta": 3}) == {"tipo": "numeric", "respuesta": 3}
+
+
+def test_almacen_disco(tmp_path):
+    import pytest
+
+    from app.pipeline.almacen import AlmacenDisco
+
+    a = AlmacenDisco(str(tmp_path))
+    a.guardar("u1/doc.pdf", b"%PDF-1.4")
+    assert a.existe("u1/doc.pdf") and a.leer("u1/doc.pdf") == b"%PDF-1.4"
+    a.borrar("u1/doc.pdf")
+    assert not a.existe("u1/doc.pdf")
+    with pytest.raises(ValueError):
+        a.guardar("../fuera.pdf", b"x")

@@ -91,9 +91,10 @@ def _fabrica_llm(api_key: str, modelo: str | None) -> ClienteLLM:
 
 
 def _almacen() -> Almacen:
-    from app.pipeline.almacen import AlmacenS3
+    from app.core.config import get_settings
+    from app.pipeline.almacen import AlmacenDisco, AlmacenS3
 
-    return AlmacenS3()
+    return AlmacenS3() if get_settings().almacen == "s3" else AlmacenDisco()
 
 
 def _ocr() -> ExtractorOCR | None:

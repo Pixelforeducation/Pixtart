@@ -5,6 +5,6 @@ WORKDIR /app
 COPY requirements.lock .
 RUN pip install --no-cache-dir -r requirements.lock
 COPY . .
-RUN useradd -m pixtart && chown -R pixtart /app
+RUN useradd -m pixtart && mkdir -p /data/pdfs && chown -R pixtart /app /data
 USER pixtart
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -35,6 +35,39 @@ class AlmacenMemoria:
         return clave in self.objetos
 
 
+class AlmacenDisco:
+    """PDFs en una carpeta compartida (volumen Docker entre api y worker)."""
+
+    def __init__(self, raiz: str | None = None) -> None:
+        from pathlib import Path
+
+        self.raiz = Path(raiz or get_settings().almacen_dir)
+        self.raiz.mkdir(parents=True, exist_ok=True)
+
+    def _ruta(self, clave: str):
+        import re
+
+        if not re.fullmatch(r"[A-Za-z0-9._/-]+", clave) or ".." in clave:
+            raise ValueError("clave de almacén inválida")
+        return self.raiz / clave
+
+    def guardar(self, clave: str, datos: bytes) -> None:
+        ruta = self._ruta(clave)
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        tmp = ruta.with_suffix(ruta.suffix + ".tmp")
+        tmp.write_bytes(datos)
+        tmp.replace(ruta)
+
+    def leer(self, clave: str) -> bytes:
+        return self._ruta(clave).read_bytes()
+
+    def borrar(self, clave: str) -> None:
+        self._ruta(clave).unlink(missing_ok=True)
+
+    def existe(self, clave: str) -> bool:
+        return self._ruta(clave).is_file()
+
+
 class AlmacenS3:
     def __init__(self) -> None:
         import boto3

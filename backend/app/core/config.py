@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+pysqlite:///./pixtart.sqlite3"
     valkey_url: str = "redis://localhost:6379/0"
+    # "disco" (volumen compartido, por defecto en local) o "s3" (MinIO/S3 compatible).
+    almacen: str = "disco"
+    almacen_dir: str = "/data/pdfs"
     s3_endpoint: str = "http://localhost:9000"
     s3_access_key: str = "pixtart"
     s3_secret_key: str = "pixtart-dev-secret"
