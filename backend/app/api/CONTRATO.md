@@ -23,7 +23,7 @@ que lanza `LimiteExcedido` si se pasa del tope.
 ## Cursos desde PDF (pipeline)
 | Método | Ruta | Entrada | Salida |
 |---|---|---|---|
-| POST | /cursos | multipart: `pdf` (≤ 25 MB, ≤ 300 págs) + `config` (JSON, ver abajo) | 202 `{curso_id, trabajo_id}` |
+| POST | /cursos | multipart: `pdf` repetido 1–10 veces + `config` (JSON, ver abajo); límites abajo | 202 `{curso_id, trabajo_id}`; 422 (ver «Varios PDFs») |
 | GET | /trabajos/{id} | — | `{id, estado, progreso: 0-100, mensaje, error?}`; estado ∈ `subiendo, leyendo, ocr, analizando, generando, validando, listo, error` |
 | GET | /cursos | — | `[{id, titulo, estado: "borrador"\|"publicado", tema, creado}]` |
 | GET | /cursos/{id} | — | `Curso` completo (abajo) |
@@ -31,6 +31,17 @@ que lanza `LimiteExcedido` si se pasa del tope.
 | DELETE | /cursos/{id}/preguntas/{pid} | — | 204 |
 | POST | /cursos/{id}/preguntas/{pid}/regenerar | `{instruccion?}` | 202 `{trabajo_id}` |
 | POST | /cursos/{id}/publicar | — | `{id, estado: "publicado"}`; 409 si hay preguntas que no pasan la validación |
+
+**Varios PDFs.** El campo `pdf` puede repetirse (1 a 10 archivos; uno solo sigue valiendo). Cada archivo
+≤ 25 MB y con firma `%PDF-`; en total ≤ 100 MB y ≤ 600 páginas. Dos archivos idénticos (mismo sha256) en la
+misma petición → 422. Todo 422 de archivos nombra el archivo, p. ej. `"«notas.pdf»: El archivo no es un PDF."`,
+`"«copia.pdf» es idéntico a «apuntes.pdf»; quita uno de los dos."`, `"Entre todos los PDFs suman 640 páginas
+(«a.pdf» 400, «b.pdf» 240); el máximo total es 600."`. El nombre se sanea (sin ruta ni `<>"'&…`, ≤ 120
+caracteres, termina en `.pdf`) y, si dos archivos distintos se llaman igual, el segundo pasa a `x (2).pdf`.
+Se guarda un `Documento` por archivo (nombre, sha256, páginas, `borrado_en`); todos se borran del almacén al
+terminar el trabajo (`listo` o `error`). `GET /trabajos/{id}.mensaje` informa por archivo:
+`"Leyendo apuntes.pdf (2 de 3)…"`. Cada PDF va en su propio bloque del prompt y las páginas se numeran dentro
+de su documento.
 
 `config` = `{titulo?, num_preguntas: 5-200, dificultad: 1-5, tipos: [TipoPregunta], instrucciones: str ≤ 2000,
 tiempos_por_tipo?: {tipo: segundos}, repaso: "fsrs"|"leitner"}`
@@ -41,7 +52,9 @@ tiempos_por_tipo?: {tipo: segundos}, repaso: "fsrs"|"leitner"}`
 es_calentamiento, preguntas: [Pregunta]}]}]}`
 
 `Pregunta` = `{id, tipo, enunciado, opciones?: [str], respuesta: <según tipo>, tolerancia?: number,
-explicacion, pista?: str, dificultad: 1-5, tiempo_s, fuente_pagina?: int, valida: bool, problemas: [str]}`
+explicacion, pista?: str, dificultad: 1-5, tiempo_s, fuente_pagina?: int, fuente_documento?: str, valida: bool,
+problemas: [str]}`. `fuente_documento` = nombre (saneado) del PDF de donde sale y `fuente_pagina` = página dentro
+de ese PDF; se omiten si no se conocen. `fuente_documento` también es editable por PATCH.
 
 Respuesta por tipo: MC → índice (int); VF → bool; fill_* → `[str]` aceptadas; numeric → number (+ `tolerancia`);
 ordering → `[int]` en orden correcto; open/math_problem/proof → texto de referencia (no se corrige solo;

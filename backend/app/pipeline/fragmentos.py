@@ -1,4 +1,7 @@
-"""División del texto en fragmentos de ~6000 tokens aproximados, respetando páginas."""
+"""División del texto en fragmentos de ~6000 tokens aproximados, respetando páginas.
+
+Cada fragmento pertenece a UN documento (`documento` = su nombre saneado): con varios PDFs se
+divide cada uno por separado y las páginas se numeran dentro de su documento."""
 
 from dataclasses import dataclass, field
 
@@ -15,6 +18,7 @@ def tokens_aprox(texto: str) -> int:
 @dataclass
 class Fragmento:
     partes: list[tuple[int, str]] = field(default_factory=list)  # (página, texto)
+    documento: str = ""
 
     @property
     def pagina_inicio(self) -> int:
@@ -32,12 +36,15 @@ class Fragmento:
         return "\n\n".join(f"[página {n}]\n{t}" for n, t in self.partes)
 
 
-def dividir(paginas: list[Pagina], max_tokens: int = TOKENS_POR_FRAGMENTO) -> list[Fragmento]:
-    """Agrupa páginas consecutivas sin pasar de `max_tokens`. Una página enorme se parte
-    en trozos (cada trozo conserva su número de página). Las páginas vacías se omiten."""
+def dividir(
+    paginas: list[Pagina], max_tokens: int = TOKENS_POR_FRAGMENTO, documento: str = ""
+) -> list[Fragmento]:
+    """Agrupa páginas consecutivas (de un mismo documento) sin pasar de `max_tokens`. Una
+    página enorme se parte en trozos (cada trozo conserva su número de página). Las páginas
+    vacías se omiten."""
     max_chars = max_tokens * CARACTERES_POR_TOKEN
     fragmentos: list[Fragmento] = []
-    actual = Fragmento()
+    actual = Fragmento(documento=documento)
     for p in paginas:
         if not p.texto.strip():
             continue
@@ -45,7 +52,7 @@ def dividir(paginas: list[Pagina], max_tokens: int = TOKENS_POR_FRAGMENTO) -> li
         for trozo in trozos:
             if actual.partes and actual.tokens + tokens_aprox(trozo) > max_tokens:
                 fragmentos.append(actual)
-                actual = Fragmento()
+                actual = Fragmento(documento=documento)
             actual.partes.append((p.numero, trozo))
     if actual.partes:
         fragmentos.append(actual)
@@ -53,10 +60,16 @@ def dividir(paginas: list[Pagina], max_tokens: int = TOKENS_POR_FRAGMENTO) -> li
 
 
 def fragmentos_en_rango(
-    fragmentos: list[Fragmento], inicio: int | None, fin: int | None, max_tokens: int
+    fragmentos: list[Fragmento],
+    inicio: int | None,
+    fin: int | None,
+    max_tokens: int,
+    documento: str | None = None,
 ) -> list[Fragmento]:
     """Fragmentos que tocan [inicio, fin]; si no hay rango o no hay coincidencias, los
-    primeros hasta `max_tokens`."""
+    primeros hasta `max_tokens`. Con `documento` (y si existe) solo se mira ese documento."""
+    if documento is not None and any(f.documento == documento for f in fragmentos):
+        fragmentos = [f for f in fragmentos if f.documento == documento]
     sel = []
     if inicio is not None and fin is not None:
         a, b = min(inicio, fin), max(inicio, fin)

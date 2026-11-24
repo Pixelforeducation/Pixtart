@@ -2,7 +2,9 @@
 
 import io
 import logging
+import re
 import shutil
+import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -11,8 +13,11 @@ from pypdf.errors import PdfReadError
 
 log = logging.getLogger(__name__)
 
-MAX_BYTES = 25 * 1024 * 1024
-MAX_PAGINAS = 300
+MAX_BYTES = 25 * 1024 * 1024  # por archivo
+MAX_BYTES_TOTAL = 100 * 1024 * 1024  # suma de todos los archivos de una petición
+MAX_ARCHIVOS = 10
+MAX_PAGINAS_TOTAL = 600  # suma de páginas de todos los archivos (un solo PDF incluido)
+MAX_NOMBRE = 120
 MIN_CARACTERES_PAGINA = 50  # menos que esto → probablemente escaneada
 
 
@@ -45,8 +50,26 @@ def _lector(datos: bytes) -> PdfReader:
     return lector
 
 
+def sanear_nombre(nombre: str | None) -> str:
+    """Nombre de archivo apto para mostrar y para ir en el prompt: sin ruta, sin caracteres de
+    control ni de marcado (`<>"'&` y similares), espacios colapsados, acotado y con `.pdf`."""
+    base = re.split(r"[\\/]", nombre or "")[-1]
+    base = unicodedata.normalize("NFC", base)
+    base = "".join(
+        " " if unicodedata.category(c)[0] in "CZ" else c for c in base
+    )
+    base = re.sub(r"[<>\"'`&{}\[\]|;$]", "_", base)
+    base = re.sub(r"\s+", " ", base).strip(" .")
+    if not base:
+        return "documento.pdf"
+    raiz, ext = (base[:-4], base[-4:]) if base.lower().endswith(".pdf") else (base, ".pdf")
+    raiz = raiz.strip(" .")[: MAX_NOMBRE - 4] or "documento"
+    return raiz + ext
+
+
 def validar_pdf(datos: bytes) -> int:
-    """Comprueba tamaño, firma y número de páginas. Devuelve el número de páginas."""
+    """Comprueba tamaño, firma y número de páginas de UN archivo. Devuelve sus páginas.
+    Los límites del conjunto (total de bytes y de páginas) los comprueba el router."""
     if len(datos) > MAX_BYTES:
         raise PDFInvalido("El PDF supera el máximo de 25 MB.")
     if not datos.startswith(b"%PDF-"):
@@ -58,8 +81,8 @@ def validar_pdf(datos: bytes) -> int:
         raise PDFInvalido("No se pudo leer el PDF: el archivo está dañado.") from e
     if n == 0:
         raise PDFInvalido("El PDF no tiene páginas.")
-    if n > MAX_PAGINAS:
-        raise PDFInvalido(f"El PDF tiene {n} páginas; el máximo es {MAX_PAGINAS}.")
+    if n > MAX_PAGINAS_TOTAL:
+        raise PDFInvalido(f"El PDF tiene {n} páginas; el máximo es {MAX_PAGINAS_TOTAL}.")
     return n
 
 

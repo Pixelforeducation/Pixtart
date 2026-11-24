@@ -4,8 +4,9 @@ import { TIPOS_PREGUNTA, type ConfigCurso, type Repaso, type TipoPregunta, type 
 import { useApi } from "../contexto";
 import { NOMBRE_ESTADO_TRABAJO, NOMBRE_TIPO } from "../lib/textos";
 import { mensajeError } from "../lib/validacion";
+import { agregarPdfs, MAX_ARCHIVOS, problemaLista, tamanoLegible } from "../lib/pdfs";
 
-export const MAX_PDF = 25 * 1024 * 1024;
+export { MAX_PDF } from "../lib/pdfs";
 const MIN_POR_DEFECTO: Partial<Record<TipoPregunta, number>> = { math_problem: 15, proof: 15 };
 
 export interface FormCurso {
@@ -18,11 +19,10 @@ export interface FormCurso {
   instrucciones: string;
 }
 
-export function validarCurso(pdf: File | null, f: FormCurso): Record<string, string> {
+export function validarCurso(pdfs: File[], f: FormCurso): Record<string, string> {
   const e: Record<string, string> = {};
-  if (!pdf) e.pdf = "Elige un PDF.";
-  else if (!/\.pdf$/i.test(pdf.name) && pdf.type !== "application/pdf") e.pdf = "El archivo debe ser un PDF.";
-  else if (pdf.size > MAX_PDF) e.pdf = "El PDF pesa más de 25 MB.";
+  const problema = problemaLista(pdfs);
+  if (problema) e.pdf = problema;
   if (!Number.isInteger(f.num_preguntas) || f.num_preguntas < 5 || f.num_preguntas > 200) e.num_preguntas = "Elige entre 5 y 200 preguntas.";
   if (f.dificultad < 1 || f.dificultad > 5) e.dificultad = "La dificultad va de 1 a 5.";
   if (!f.tipos.length) e.tipos = "Elige al menos un tipo de pregunta.";
@@ -56,7 +56,8 @@ export function CrearCurso() {
   const api = useApi();
   const nav = useNavigate();
   const [tieneKey, setTieneKey] = useState<boolean | null>(null);
-  const [pdf, setPdf] = useState<File | null>(null);
+  const [pdfs, setPdfs] = useState<File[]>([]);
+  const [rechazos, setRechazos] = useState<string[]>([]);
   const [encima, setEncima] = useState(false);
   const [f, setF] = useState<FormCurso>({
     titulo: "", num_preguntas: 20, dificultad: 3, tipos: ["multiple_choice", "true_false"],
@@ -66,16 +67,29 @@ export function CrearCurso() {
   const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const boton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     api.listarKeys().then((ks) => setTieneKey(ks.some((k) => k.estado === "activa"))).catch(() => setTieneKey(false));
   }, [api]);
 
+  const agregar = (lista: FileList | null | undefined) => {
+    const nuevos = Array.from(lista ?? []);
+    if (!nuevos.length) return;
+    const r = agregarPdfs(pdfs, nuevos);
+    setPdfs(r.archivos);
+    setRechazos(r.rechazos);
+    if (r.archivos.length) setErrores(({ pdf: _, ...resto }) => resto);
+  };
+  const quitar = (i: number) => {
+    setPdfs((xs) => xs.filter((_, j) => j !== i));
+    setRechazos([]);
+    boton.current?.focus();
+  };
   const soltar = (e: DragEvent) => {
     e.preventDefault();
     setEncima(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) setPdf(file);
+    agregar(e.dataTransfer.files);
   };
   const alternarTipo = (t: TipoPregunta) =>
     setF((x) => ({ ...x, tipos: x.tipos.includes(t) ? x.tipos.filter((y) => y !== t) : [...x.tipos, t] }));
@@ -83,12 +97,12 @@ export function CrearCurso() {
   const enviar = async (ev: FormEvent) => {
     ev.preventDefault();
     setErrorGeneral(null);
-    const e = validarCurso(pdf, f);
+    const e = validarCurso(pdfs, f);
     setErrores(e);
-    if (Object.keys(e).length || !pdf) return;
+    if (Object.keys(e).length || !pdfs.length) return;
     setEnviando(true);
     try {
-      const r = await api.crearCurso(pdf, aConfig(f));
+      const r = await api.crearCurso(pdfs, aConfig(f));
       nav(`/crear/progreso/${r.trabajo_id}?curso=${r.curso_id}`);
     } catch (err) {
       setErrorGeneral(mensajeError(err));
@@ -99,7 +113,7 @@ export function CrearCurso() {
 
   return (
     <>
-      <h1>Crear curso desde un PDF</h1>
+      <h1>Crear curso desde tus PDFs</h1>
       {tieneKey === false && (
         <p className="aviso" role="status">
           Necesitas conectar tu API key de Anthropic para generar cursos. <Link to="/ajustes">Ir a Ajustes → Tu IA</Link>
@@ -107,14 +121,36 @@ export function CrearCurso() {
       )}
       <form onSubmit={enviar} noValidate className="panel">
         <div className="campo">
-          <span className="pix-font" style={{ fontSize: 10, display: "block", marginBottom: 8 }} id="lbl-pdf">PDF (máx. 25 MB, 300 págs.)</span>
+          <span className="pix-font" style={{ fontSize: 10, display: "block", marginBottom: 8 }} id="lbl-pdf">
+            PDFs (hasta {MAX_ARCHIVOS}; máx. 25 MB cada uno, 100 MB y 600 págs. en total)
+          </span>
           <div className={`zona-pdf ${encima ? "encima" : ""}`} onDragOver={(e) => { e.preventDefault(); setEncima(true); }}
             onDragLeave={() => setEncima(false)} onDrop={soltar} data-testid="zona-pdf">
-            <p>{pdf ? <>Elegido: <strong>{pdf.name}</strong> ({(pdf.size / 1024 / 1024).toFixed(1)} MB)</> : "Arrastra aquí tu PDF o"}</p>
-            <input ref={input} id="pdf" type="file" accept="application/pdf,.pdf" className="sr-only" aria-labelledby="lbl-pdf"
-              onChange={(e) => setPdf(e.target.files?.[0] ?? null)} />
-            <button type="button" className="boton secundario" onClick={() => input.current?.click()}>{pdf ? "Cambiar PDF" : "Elegir archivo"}</button>
+            <p>{pdfs.length ? "Puedes arrastrar más PDFs aquí o" : "Arrastra aquí tus PDFs o"}</p>
+            <input ref={input} id="pdf" type="file" multiple accept="application/pdf,.pdf" className="sr-only" aria-labelledby="lbl-pdf"
+              aria-describedby={errores.pdf ? "err-pdf" : undefined}
+              onChange={(e) => { agregar(e.target.files); e.target.value = ""; }} />
+            <button ref={boton} type="button" className="boton secundario" onClick={() => input.current?.click()}>
+              {pdfs.length ? "Añadir más PDFs" : "Elegir archivos"}
+            </button>
           </div>
+          {pdfs.length > 0 && (
+            <ul className="lista-pdfs" aria-label="PDFs elegidos">
+              {pdfs.map((x, i) => (
+                <li key={`${x.name}-${x.size}-${x.lastModified}-${i}`}>
+                  <span><strong>{x.name}</strong> ({tamanoLegible(x.size)})</span>
+                  <button type="button" className="boton secundario" aria-label={`Quitar ${x.name}`} onClick={() => quitar(i)}>Quitar</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="ayuda-campo" aria-live="polite">
+            {pdfs.length === 1 ? "1 PDF elegido" : `${pdfs.length} PDFs elegidos`}
+            {pdfs.length ? ` · ${tamanoLegible(pdfs.reduce((s, x) => s + x.size, 0))} en total` : ""}
+          </p>
+          {rechazos.length > 0 && (
+            <div className="error" role="alert">{rechazos.map((r) => <p key={r}>{r}</p>)}</div>
+          )}
           {err("pdf")}
         </div>
         <div className="campo">

@@ -54,6 +54,7 @@ class EdicionPregunta(BaseModel):
     dificultad: int | None = Field(default=None, ge=1, le=5)
     tiempo_s: int | None = Field(default=None, ge=5, le=3600)
     fuente_pagina: int | None = None
+    fuente_documento: str | None = Field(default=None, max_length=255)
 
 
 class CuerpoRegenerar(BaseModel):

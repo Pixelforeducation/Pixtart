@@ -112,6 +112,8 @@ export interface Pregunta {
   dificultad: number;
   tiempo_s: number;
   fuente_pagina?: number | null;
+  /** Nombre del PDF del que sale la pregunta (cursos creados con varios PDFs). */
+  fuente_documento?: string | null;
   valida: boolean;
   problemas: string[];
 }

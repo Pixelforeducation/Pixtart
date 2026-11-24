@@ -14,7 +14,8 @@ from app.models.cursos import Curso, Documento, Pregunta, Trabajo, nuevo_id
 from app.pipeline import servicio
 from app.pipeline.dependencias import obtener_almacen, usuario_actual
 from app.pipeline.esquemas import ConfigCurso, CuerpoRegenerar, EdicionPregunta
-from app.pipeline.extraccion import MAX_BYTES, PDFInvalido, validar_pdf
+from app.pipeline import extraccion
+from app.pipeline.extraccion import PDFInvalido, sanear_nombre, validar_pdf
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["cursos"])
@@ -24,7 +25,7 @@ _NO_ENCONTRADO = "No encontramos ese curso."
 
 def _pregunta_json(p: Pregunta) -> dict:
     d = {"id": p.id, **servicio.pregunta_a_dict(p)}
-    for opcional in ("opciones", "tolerancia", "pista", "fuente_pagina"):
+    for opcional in ("opciones", "tolerancia", "pista", "fuente_pagina", "fuente_documento"):
         if d[opcional] is None:
             d.pop(opcional)
     d["tiempo_s"] = p.tiempo_s
@@ -102,9 +103,68 @@ def _encolar(db: Session, t: Trabajo, tarea, *args) -> None:
         db.commit()
 
 
+def _nombre_unico(nombre: str, usados: set[str]) -> str:
+    """Dos archivos distintos con el mismo nombre: el segundo pasa a «x (2).pdf»."""
+    if nombre.casefold() not in usados:
+        return nombre
+    raiz, ext = nombre[:-4], nombre[-4:]
+    n = 2
+    while f"{raiz} ({n}){ext}".casefold() in usados:
+        n += 1
+    return f"{raiz} ({n}){ext}"
+
+
+def _leer_pdfs(archivos: list[UploadFile]) -> list[dict]:
+    """Lee y valida los PDFs de la petición. Lanza 422 diciendo QUÉ archivo falló."""
+    mb = 1024 * 1024
+    if not archivos:
+        raise HTTPException(422, "Sube al menos un PDF.")
+    if len(archivos) > extraccion.MAX_ARCHIVOS:
+        raise HTTPException(
+            422,
+            f"Subiste {len(archivos)} archivos; el máximo es {extraccion.MAX_ARCHIVOS} PDFs.",
+        )
+    leidos: list[dict] = []
+    usados: set[str] = set()
+    total = 0
+    for archivo in archivos:
+        original = sanear_nombre(archivo.filename)
+        datos = archivo.file.read(extraccion.MAX_BYTES + 1)
+        total += len(datos)
+        if len(datos) <= extraccion.MAX_BYTES and total > extraccion.MAX_BYTES_TOTAL:
+            raise HTTPException(
+                422,
+                f"Entre todos los PDFs superan el máximo total de "
+                f"{extraccion.MAX_BYTES_TOTAL // mb} MB (al llegar a «{original}»).",
+            )
+        try:
+            paginas = validar_pdf(datos)
+        except PDFInvalido as e:
+            raise HTTPException(422, f"«{original}»: {e}") from e
+        sha = hashlib.sha256(datos).hexdigest()
+        igual = next((x for x in leidos if x["sha256"] == sha), None)
+        if igual is not None:
+            raise HTTPException(
+                422,
+                f"«{original}» es idéntico a «{igual['nombre']}»; quita uno de los dos.",
+            )
+        nombre = _nombre_unico(original, usados)
+        usados.add(nombre.casefold())
+        leidos.append({"nombre": nombre, "datos": datos, "sha256": sha, "paginas": paginas})
+    paginas_total = sum(x["paginas"] for x in leidos)
+    if paginas_total > extraccion.MAX_PAGINAS_TOTAL:
+        detalle = ", ".join(f"«{x['nombre']}» {x['paginas']}" for x in leidos)
+        raise HTTPException(
+            422,
+            f"Entre todos los PDFs suman {paginas_total} páginas ({detalle}); "
+            f"el máximo total es {extraccion.MAX_PAGINAS_TOTAL}.",
+        )
+    return leidos
+
+
 @router.post("/cursos", status_code=202)
 def crear_curso(
-    pdf: UploadFile = File(...),
+    pdf: list[UploadFile] = File(...),
     config: str = Form(...),
     usuario=Depends(usuario_actual),
     db: Session = Depends(get_db),
@@ -118,44 +178,51 @@ def crear_curso(
         ) if isinstance(e, ValidationError) else "no es JSON válido"
         raise HTTPException(422, f"La configuración no es válida: {detalle}") from e
 
-    datos = pdf.file.read(MAX_BYTES + 1)
-    try:
-        paginas = validar_pdf(datos)
-    except PDFInvalido as e:
-        raise HTTPException(422, str(e)) from e
+    leidos = _leer_pdfs(pdf)
 
     config_dict = cfg.model_dump()
-    nombre = (pdf.filename or "documento.pdf")[:255]
-    titulo = cfg.titulo or nombre.rsplit(".", 1)[0][:200] or "Curso"
+    primero = leidos[0]["nombre"]
+    titulo = cfg.titulo or primero.rsplit(".", 1)[0][:200] or "Curso"
     curso = Curso(usuario_id=usuario.id, titulo=titulo, config=config_dict)
     db.add(curso)
     db.flush()
-    doc_id = nuevo_id()
-    ruta = f"{usuario.id}/{doc_id}.pdf"
-    almacen.guardar(ruta, datos)
-    db.add(
-        Documento(
-            id=doc_id,
-            usuario_id=usuario.id,
-            curso_id=curso.id,
-            nombre=nombre,
-            sha256=hashlib.sha256(datos).hexdigest(),
-            tamano=len(datos),
-            paginas=paginas,
-            ruta=ruta,
-        )
-    )
-    t = Trabajo(
-        usuario_id=usuario.id, curso_id=curso.id, tipo="generar", mensaje="PDF recibido."
-    )
+    recibido = "PDF recibido." if len(leidos) == 1 else f"{len(leidos)} PDFs recibidos."
+    t = Trabajo(usuario_id=usuario.id, curso_id=curso.id, tipo="generar", mensaje=recibido)
     db.add(t)
-    db.commit()
+    db.flush()
+    rutas: list[str] = []
+    try:
+        for orden, x in enumerate(leidos):
+            doc_id = nuevo_id()
+            ruta = f"{usuario.id}/{doc_id}.pdf"
+            almacen.guardar(ruta, x["datos"])
+            rutas.append(ruta)
+            db.add(
+                Documento(
+                    id=doc_id,
+                    usuario_id=usuario.id,
+                    curso_id=curso.id,
+                    trabajo_id=t.id,
+                    orden=orden,
+                    nombre=x["nombre"],
+                    sha256=x["sha256"],
+                    tamano=len(x["datos"]),
+                    paginas=x["paginas"],
+                    ruta=ruta,
+                )
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        for ruta in rutas:
+            almacen.borrar(ruta)
+        raise
 
     from app.pipeline.tasks import procesar_curso
 
     _encolar(db, t, procesar_curso, t.id)
-    if t.estado == "error":  # no se encoló: no dejar el PDF en el almacén
-        almacen.borrar(ruta)
+    if t.estado == "error":  # no se encoló: no dejar los PDFs en el almacén
+        servicio.borrar_documentos(db, t, servicio.documentos_del_trabajo(db, t), almacen)
     return {"curso_id": curso.id, "trabajo_id": t.id}
 
 

@@ -15,7 +15,8 @@ export interface Api {
   obtenerLimites(): Promise<T.Limites>;
   guardarLimites(e: T.LimitesEntrada): Promise<T.Limites>;
 
-  crearCurso(pdf: File, config: T.ConfigCurso): Promise<T.CursoCreado>;
+  /** 1 a 10 PDFs; se envían con el campo multipart `pdf` repetido. */
+  crearCurso(pdfs: File[], config: T.ConfigCurso): Promise<T.CursoCreado>;
   trabajo(id: Id): Promise<T.Trabajo>;
   listarCursos(): Promise<T.CursoResumen[]>;
   curso(id: Id): Promise<T.Curso>;
@@ -89,9 +90,9 @@ export const apiHttp: Api = {
   obtenerLimites: () => pedir("GET", "/keys/limites"),
   guardarLimites: (e) => pedir("PUT", "/keys/limites", e),
 
-  crearCurso: (pdf, config) => {
+  crearCurso: (pdfs, config) => {
     const fd = new FormData();
-    fd.append("pdf", pdf);
+    for (const pdf of pdfs) fd.append("pdf", pdf, pdf.name);
     fd.append("config", JSON.stringify(config));
     return pedir("POST", "/cursos", fd);
   },

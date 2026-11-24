@@ -218,3 +218,8 @@ fieldset { border: 2px solid var(--c-brillo); padding: 12px; margin: 0 0 14px; }
   *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
 [tabindex="-1"]:focus { outline: none; }
+
+/* ---- Lista de PDFs elegidos (Crear curso) ---- */
+.lista-pdfs { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.lista-pdfs li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  background: var(--c-fondo2); border: 3px solid var(--c-borde); padding: 6px 10px; overflow-wrap: anywhere; }
