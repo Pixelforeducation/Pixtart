@@ -1,0 +1,13 @@
+{
+  "name": "Pixtart",
+  "short_name": "Pixtart",
+  "description": "Aprende jugando con cursos creados a partir de tus PDFs.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1B1F3B",
+  "theme_color": "#1B1F3B",
+  "lang": "es",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
