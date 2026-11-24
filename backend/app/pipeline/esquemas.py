@@ -27,6 +27,9 @@ class ConfigCurso(BaseModel):
     instrucciones: str = Field(default="", max_length=2000)
     tiempos_por_tipo: dict[TipoPregunta, int] | None = None
     repaso: Literal["fsrs", "leitner"]
+    # Nivel final de cada sección (Q35): número de preguntas N y calificación mínima g en %.
+    final_n: int = Field(default=10, ge=3, le=40)
+    final_g: int = Field(default=70, ge=60, le=100)
 
     @field_validator("tipos")
     @classmethod

@@ -5,10 +5,10 @@ El juego no conoce las tablas del pipeline: habla con `FuenteCursos`. Hay dos im
 - `FuenteCursosSQL`: importa `app.models.cursos` de forma perezosa. Supone los nombres del
   contrato (verificados contra `app/models/cursos.py`): `Curso(id, usuario_id, titulo, tema,
   estado, config)`, `Seccion(id, curso_id, titulo, orden)`, `Nivel(id, seccion_id, titulo, orden,
-  es_calentamiento)` y `Pregunta(id, nivel_id, orden, tipo, enunciado, opciones, respuesta,
-  tolerancia, explicacion, pista, dificultad, tiempo_s, valida)`. Se leen con `getattr` (aún no
-  existen): `Nivel.es_final` y `Nivel.es_jefe` (por defecto False). `Curso.config` aporta
-  `tiempos_por_tipo` y `repaso`.
+  es_calentamiento, es_final)` y `Pregunta(id, nivel_id, orden, tipo, enunciado, opciones,
+  respuesta, tolerancia, explicacion, pista, dificultad, tiempo_s, valida)`. `es_final` y
+  `es_jefe` se leen con `getattr` (por defecto False; `es_jefe` aún no existe). `Curso.config`
+  aporta `tiempos_por_tipo`, `repaso` y los del nivel final `final_n` y `final_g`.
 
 Todo método recibe `usuario_id` y devuelve None si el curso no existe, no es del usuario o no
 está publicado (la API responde 404).
@@ -22,6 +22,7 @@ from typing import Any, Protocol
 from sqlalchemy.orm import Session
 
 from app.game.tipos import Pregunta
+from app.play import final
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,6 +51,8 @@ class CaminoCurso:
     secciones: tuple[SeccionInfo, ...] = ()
     tiempos_por_tipo: dict[str, float] = field(default_factory=dict)
     repaso: str = "leitner"
+    final_n: int = 10  # preguntas del nivel final (Q35: 3–40)
+    final_g: int = 70  # calificación mínima del nivel final en % (Q35: 60–100)
 
     def niveles(self) -> list[tuple[SeccionInfo, NivelInfo]]:
         """Niveles en orden de juego (sección, nivel)."""
@@ -169,6 +172,8 @@ class FuenteCursosSQL:
             secciones=tuple(secciones),
             tiempos_por_tipo=dict(config.get("tiempos_por_tipo") or {}),
             repaso=config.get("repaso") or "leitner",
+            final_n=final.acotar_n(config.get("final_n", final.N_POR_DEFECTO)),
+            final_g=final.acotar_g(config.get("final_g", final.G_POR_DEFECTO)),
         )
 
     def curso_de_nivel(self, db: Session, usuario_id: str, nivel_id: str) -> CaminoCurso | None:

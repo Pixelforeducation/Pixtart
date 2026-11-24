@@ -122,12 +122,15 @@ def test_normalizar_estructura_inserta_calentamiento():
     n = normalizar_estructura(est, max_niveles=10)
     assert [s["titulo"] for s in n["secciones"]] == ["S1", "S2"]
     s1, s2 = n["secciones"]
-    assert [x["titulo"] for x in s1["niveles"]] == ["B", "A"]
-    assert [x["es_calentamiento"] for x in s1["niveles"]] == [True, False]
+    assert [x["titulo"] for x in s1["niveles"]] == ["B", "A", "Nivel final: S1"]
+    assert [x["es_calentamiento"] for x in s1["niveles"]] == [True, False, False]
+    assert [x["es_final"] for x in s1["niveles"]] == [False, False, True]
     assert s2["niveles"][0]["titulo"] == "Calentamiento: S2"
     assert s2["niveles"][0]["es_calentamiento"] and not s2["niveles"][1]["es_calentamiento"]
+    assert s2["niveles"][-1]["es_final"] and len(s2["niveles"]) == 3
+    # El nivel final no cuenta para el tope de niveles: uno más por sección.
     acotada = normalizar_estructura(est, max_niveles=3)
-    assert sum(len(s["niveles"]) for s in acotada["secciones"]) == 3
+    assert sum(len(s["niveles"]) for s in acotada["secciones"]) == 3 + len(acotada["secciones"])
     with pytest.raises(ErrorPipeline):
         normalizar_estructura({"secciones": []}, 5)
 

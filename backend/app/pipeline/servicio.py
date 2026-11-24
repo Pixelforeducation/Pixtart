@@ -109,13 +109,15 @@ def _ejecutar(db: Session, t: Trabajo, cuerpo) -> None:
 def normalizar_estructura(
     estructura: dict, max_niveles: int, documentos: list[str] | None = None
 ) -> dict:
-    """Garantiza un calentamiento al inicio de cada sección (y solo ahí) y acota niveles.
+    """Garantiza un calentamiento al inicio de cada sección (y solo ahí), acota niveles y cierra
+    cada sección con un nivel final (examen-aventura; no cuenta para `max_niveles` y no se le
+    generan preguntas: usa las de los demás niveles de su sección).
     Con `documentos` (nombres válidos), el `documento` de cada nivel se valida: si no es uno
     de ellos queda None; con un solo documento, todos los niveles son de ese."""
     secciones = []
     restantes = max_niveles
     for s in estructura.get("secciones", []):
-        niveles = [dict(n) for n in s.get("niveles", [])]
+        niveles = [dict(n) for n in s.get("niveles", []) if not n.get("es_final")]
         if documentos is not None:
             for n in niveles:
                 n["documento"] = resolver_documento(n.get("documento"), documentos)
@@ -138,8 +140,12 @@ def normalizar_estructura(
         calent["es_calentamiento"] = True
         for n in niveles:
             n["es_calentamiento"] = False
+        for n in niveles:
+            n["es_final"] = False
+        calent["es_final"] = False
         lista = ([calent] + niveles)[:restantes]
         restantes -= len(lista)
+        lista.append(_nivel_final(s["titulo"], lista))
         secciones.append({"titulo": s["titulo"], "niveles": lista})
     if not secciones:
         raise ErrorPipeline("La IA no pudo proponer una estructura para este PDF.")
@@ -148,6 +154,21 @@ def normalizar_estructura(
         "tema": estructura.get("tema") or "",
         "secciones": secciones,
     }
+
+
+def _nivel_final(titulo_seccion: str, niveles: list[dict]) -> dict:
+    final = {
+        "titulo": f"Nivel final: {titulo_seccion}"[:200],
+        "resumen": "",
+        "pagina_inicio": niveles[0].get("pagina_inicio") if niveles else None,
+        "pagina_fin": niveles[-1].get("pagina_fin") if niveles else None,
+        "es_calentamiento": False,
+        "es_final": True,
+    }
+    docs = {n.get("documento") for n in niveles}
+    if len(docs) == 1 and None not in docs:
+        final["documento"] = docs.pop()
+    return final
 
 
 def resolver_documento(nombre: str | None, documentos: list[str]) -> str | None:
@@ -191,6 +212,7 @@ def _crear_secciones(db: Session, curso: Curso, estructura: dict) -> None:
                     titulo=n["titulo"][:200],
                     orden=j,
                     es_calentamiento=bool(n["es_calentamiento"]),
+                    es_final=bool(n.get("es_final")),
                     resumen=n.get("resumen", ""),
                     pagina_inicio=n.get("pagina_inicio"),
                     pagina_fin=n.get("pagina_fin"),
@@ -345,7 +367,8 @@ def procesar_curso(db: Session, trabajo_id: str) -> None:
         if not curso.secciones:
             _crear_secciones(db, curso, estructura)
 
-        niveles = [(s, n) for s in curso.secciones for n in s.niveles]
+        # El nivel final no se genera: juega con las preguntas de su sección.
+        niveles = [(s, n) for s in curso.secciones for n in s.niveles if not n.es_final]
         cuotas = repartir(
             [0.5 if n.es_calentamiento else 1.0 for _, n in niveles], config["num_preguntas"]
         )
