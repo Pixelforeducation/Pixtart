@@ -30,15 +30,13 @@ TIEMPO_LARGO = {"math_problem": 900, "proof": 900}  # 15 min (decisión Q24)
 def tiempo_por_defecto(
     tipo: str, dificultad: int, enunciado: str, tiempos_por_tipo: dict | None = None
 ) -> int:
-    if tiempos_por_tipo and tiempos_por_tipo.get(tipo):
-        return int(tiempos_por_tipo[tipo])
-    if tipo in TIEMPO_LARGO:
-        return TIEMPO_LARGO[tipo]
-    base, minimo = _BASE_Y_MIN.get(tipo, (30, 15))
-    f = _F_DIFF.get(min(5, max(1, int(dificultad or 3))), 1.25)
-    palabras = len((enunciado or "").split())
-    t = base * f + palabras / 3.3 + 1.5
-    return int(math.ceil(min(max(t, minimo), _TOPE)))
+    """Delegado a la fuente única de verdad: app.game.tiempo.tiempo_limite."""
+    from app.game.tiempo import tiempo_limite
+
+    overrides = {k: v for k, v in (tiempos_por_tipo or {}).items() if v}
+    return tiempo_limite(
+        tipo, min(5, max(1, int(dificultad or 3))), enunciado or "", tiempos_por_tipo=overrides
+    )
 
 
 def normalizar(texto: str) -> str:
