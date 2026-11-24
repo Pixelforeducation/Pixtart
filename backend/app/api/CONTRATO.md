@@ -67,3 +67,30 @@ monedas, escudos, racha, vidas, mascota: EstadoMascota | null, inventario: [{ite
 
 `EstadoMascota` = `{id, especie, rareza: "comun"|"rara"|"legendaria", viva: bool, revive_en?: iso8601,
 comida: int, hambrienta: bool, ayudas_restantes_nivel: int}`
+
+## Ampliaciones v0.1 (juego)
+Acordadas con el frontend; amplían la sección "Juego" sin romperla.
+
+1. `POST /juego/paleta {paleta_id}` → `Estado`. Elige la paleta preferida; 409 si no está desbloqueada.
+2. `POST /juego/intentos/{id}/ayuda` → `{tipo_ayuda, datos}` con `datos` según la ayuda:
+   MC/VF `{"eliminar_opcion": int}` (VF: índice 0 = Verdadero, 1 = Falso), `tipo_ayuda: "eliminar_opcion"`;
+   completar `{"revelar": str}` (prefijo), `"revelar"`; numérica `{"intervalo": [min, max]}`, `"intervalo"`;
+   ordenar `{"fijar_paso": {"posicion": int, "indice": int}}`, `"fijar_paso"`;
+   pista (legendaria en abierta: IA con la key BYOK o, si no hay o falla, la pista escrita) `{"pista": str}`, `"pista"`.
+3. Responder: en `open`/`math_problem`/`proof` el cliente manda `respuesta: true|false` (autoevaluación;
+   también se acepta `{"autoevaluacion": bool}`). `respuesta: null` = timeout (incorrecta, cuenta como timeout)
+   en cualquier tipo. El servidor también marca timeout si pasó `tiempo_s + 2 s` (reloj del servidor, desde
+   `iniciar` o la respuesta anterior) o si `tiempo_ms > tiempo_s`.
+4. `PreguntaJugable` = `{id, tipo, enunciado, opciones: [str] | null, dificultad, tiempo_s, es_calentamiento,
+   explicacion?}`; `explicacion` solo en abiertas/math/proof. Nunca incluye la respuesta correcta ni la pista.
+5. Mascotas: aparecen en `inventario` como ítems `{item_id: "mascota_<especie>", cantidad: 1}`;
+   `EstadoMascota.id` usa ese mismo id y `POST /juego/mascotas/equipar {mascota_id}` lo recibe.
+6. Ids públicos de ítems: `botiquin`, `pocion_resurreccion`, `comida`, `escudo`, `pocion_tiempo`, `lupa` y
+   `mascota_<especie>` (mapeo a ids internos en `app/play/ids.py`).
+   `POST /juego/items/usar` acepta además `intento_id` (poción de tiempo: +10 s a la pregunta en curso) e
+   `intento_id` + `pregunta_id` (lupa: muestra la pista escrita; 409 si no hay). Para esos dos, el `Estado`
+   devuelto trae además `efecto`: `{"segundos_extra": int}` o `{"pista": str}`. `comida` da +5 de comida.
+7. Camino: tras el nivel que lo ganó aparece un nodo `{id, titulo, estado: "disponible"|"completado", tipo: "cofre"}`;
+   su `id` es el del cofre para `POST /juego/cofres/{id}/abrir`.
+8. `terminar.xp_ganada` es la XP total del intento (aciertos + fin de nivel + racha); `terminar.monedas` y
+   `abrir.monedas` son las monedas ganadas; `cofre` = `{id, tipo: "normal"|"legendario"}`. `comprar.monedas` es el saldo.

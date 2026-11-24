@@ -1,0 +1,120 @@
+"""(De)serialización JSON de los estados inmutables de `app/game`."""
+
+from __future__ import annotations
+
+from datetime import UTC, date, datetime
+from types import MappingProxyType
+from typing import Any
+
+from app.game.experiencia import EstadoProgreso
+from app.game.mascota import EstadoVidas, Mascota
+from app.game.recompensas import EstadoCofres
+from app.game.seleccion import EstadoTarjeta
+from app.game.tipos import Rareza
+
+
+def utc(dt: datetime) -> datetime:
+    """SQLite devuelve datetimes sin zona: se asumen UTC."""
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
+
+
+def _dt(s: str | None) -> datetime | None:
+    return utc(datetime.fromisoformat(s)) if s else None
+
+
+def _d(s: str | None) -> date | None:
+    return date.fromisoformat(s) if s else None
+
+
+# ---------------------------------------------------------------- progreso
+
+
+def progreso_a_json(p: EstadoProgreso) -> dict[str, Any]:
+    return {
+        "zona_horaria": p.zona_horaria,
+        "liquidado_hasta": p.liquidado_hasta.isoformat(),
+        "xp_total_por_tema": dict(p.xp_total_por_tema),
+        "xp_color": p.xp_color,
+        "escudos": p.escudos,
+        "racha": p.racha,
+        "ultimo_dia_jugado": p.ultimo_dia_jugado.isoformat() if p.ultimo_dia_jugado else None,
+        "niveles_hoy": p.niveles_hoy,
+    }
+
+
+def progreso_desde_json(d: dict[str, Any]) -> EstadoProgreso:
+    return EstadoProgreso(
+        zona_horaria=d["zona_horaria"],
+        liquidado_hasta=date.fromisoformat(d["liquidado_hasta"]),
+        xp_total_por_tema=MappingProxyType({k: int(v) for k, v in d["xp_total_por_tema"].items()}),
+        xp_color=int(d["xp_color"]),
+        escudos=int(d["escudos"]),
+        racha=int(d["racha"]),
+        ultimo_dia_jugado=_d(d.get("ultimo_dia_jugado")),
+        niveles_hoy=int(d.get("niveles_hoy", 0)),
+    )
+
+
+# ---------------------------------------------------------------- vidas y mascota
+
+
+def vidas_a_json(v: EstadoVidas) -> dict[str, Any]:
+    m = v.mascota
+    return {
+        "vidas": v.vidas,
+        "mascota": {"id": m.id, "especie": m.especie, "rareza": str(m.rareza)} if m else None,
+        "muerta_hasta": v.muerta_hasta.isoformat() if v.muerta_hasta else None,
+        "comida": v.comida,
+        "ayudas_usadas_nivel": v.ayudas_usadas_nivel,
+        "nivel_sin_ayudas": v.nivel_sin_ayudas,
+    }
+
+
+def vidas_desde_json(d: dict[str, Any]) -> EstadoVidas:
+    m = d.get("mascota")
+    return EstadoVidas(
+        vidas=int(d["vidas"]),
+        mascota=Mascota(m["id"], m["especie"], Rareza(m["rareza"])) if m else None,
+        muerta_hasta=_dt(d.get("muerta_hasta")),
+        comida=int(d.get("comida", 0)),
+        ayudas_usadas_nivel=int(d.get("ayudas_usadas_nivel", 0)),
+        nivel_sin_ayudas=bool(d.get("nivel_sin_ayudas", False)),
+    )
+
+
+# ---------------------------------------------------------------- cofres
+
+
+def cofres_a_json(c: EstadoCofres) -> dict[str, Any]:
+    return {
+        "niveles_desde_cofre": c.niveles_desde_cofre,
+        "normales_desde_legendario": c.normales_desde_legendario,
+        "cofres_sin_legendario": c.cofres_sin_legendario,
+    }
+
+
+def cofres_desde_json(d: dict[str, Any]) -> EstadoCofres:
+    return EstadoCofres(**{k: int(v) for k, v in d.items()})
+
+
+# ---------------------------------------------------------------- repaso
+
+
+def tarjeta_a_json(t: EstadoTarjeta) -> dict[str, Any]:
+    return {
+        "vence": t.vence.isoformat(),
+        "caja": t.caja,
+        "repeticiones": t.repeticiones,
+        "datos": [list(x) for x in t.datos],
+    }
+
+
+def tarjeta_desde_json(d: dict[str, Any]) -> EstadoTarjeta:
+    vence = _dt(d["vence"])
+    assert vence is not None
+    return EstadoTarjeta(
+        vence=vence,
+        caja=int(d["caja"]),
+        repeticiones=int(d.get("repeticiones", 0)),
+        datos=tuple((str(k), float(v)) for k, v in d.get("datos", [])),
+    )
