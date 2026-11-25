@@ -1,0 +1,86 @@
+/* Pixtart — componentes de enganche (agente juego-ui). Prefijo eg-. Colores de styles.css. */
+
+/* ---------- Racha ---------- */
+.eg-racha { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px 6px 8px; background: var(--c-fondo2);
+  border: 3px solid var(--c-borde); box-shadow: inset 0 0 0 2px #FF9A3C; color: var(--texto); }
+.eg-llama { display: block; width: 28px; height: 36px; flex: none; transform-origin: 50% 100%; }
+.eg-llama-svg { display: block; width: 100%; height: 100%; }
+.eg-llama-2 .eg-llama { width: 32px; height: 41px; }
+.eg-llama-3 .eg-llama { width: 36px; height: 46px; filter: drop-shadow(0 0 4px #FF9A3C); }
+.eg-llama-4 .eg-llama { width: 40px; height: 52px; filter: drop-shadow(0 0 6px var(--r-leg2)); }
+.eg-llama-4 .eg-p-o { fill: #F2A81D; }
+.eg-racha-num { font-family: var(--fuente-pixel); font-size: 20px; color: #FFB86B; text-shadow: 2px 2px 0 var(--c-borde); display: inline-block; }
+.eg-racha-txt { display: flex; flex-direction: column; gap: 4px; font-family: var(--fuente-pixel); font-size: 8px; line-height: 1.4; }
+.eg-escudos { display: inline-flex; align-items: center; gap: 4px; color: var(--r-rara2); }
+.eg-escudo { display: inline-block; width: 10px; height: 12px; background: var(--r-rara); clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%); }
+.eg-racha-pendiente { box-shadow: inset 0 0 0 2px var(--c-piedra3); }
+.eg-racha-pendiente .eg-llama { filter: saturate(0.35) brightness(0.85); }
+.eg-racha-pendiente .eg-racha-txt { color: var(--c-moneda3); }
+.eg-racha-apagada .eg-llama { filter: grayscale(1) brightness(0.7); }
+.eg-racha.eg-compacta { padding: 4px 8px 4px 6px; gap: 6px; }
+.eg-compacta .eg-llama { width: 18px; height: 23px; }
+.eg-compacta .eg-racha-num { font-size: 12px; }
+
+/* ---------- Meta diaria ---------- */
+.eg-meta { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 6px; }
+.eg-meta svg { display: block; }
+.eg-meta-vacio { stroke: var(--c-piedra3); }
+.eg-meta-lleno { stroke: var(--acierto); }
+.eg-meta-ok .eg-meta-lleno { stroke: var(--c-moneda); }
+.eg-meta-ok svg { filter: drop-shadow(0 0 6px var(--r-leg2)); }
+.eg-meta-centro { position: absolute; top: calc(var(--tam, 88px) / 2); left: 50%; transform: translate(-50%, -50%);
+  font-family: var(--fuente-pixel); font-size: 12px; color: var(--texto); text-shadow: 2px 2px 0 var(--c-borde); }
+.eg-meta-txt { font-family: var(--fuente-pixel); font-size: 8px; text-align: center; }
+.eg-meta-ok .eg-meta-txt { color: var(--c-moneda3); }
+.eg-meta-estrella { display: block; width: 4px; height: 4px; background: var(--c-moneda3); transform: scale(1.6); box-shadow:
+  0 -4px var(--c-moneda), 0 -8px var(--c-moneda2), 0 4px var(--c-moneda), 0 8px var(--c-moneda2),
+  -4px 0 var(--c-moneda), -8px 0 var(--c-moneda2), 4px 0 var(--c-moneda), 8px 0 var(--c-moneda2); }
+
+/* ---------- Barra XP ---------- */
+.eg-xp { display: grid; gap: 6px; width: 100%; }
+.eg-xp-cabeza { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-family: var(--fuente-pixel); font-size: 9px; line-height: 1.4; }
+.eg-xp-tier { color: #9BE58F; white-space: nowrap; }
+.eg-xp-etiqueta { order: -1; flex-basis: 100%; opacity: 0.8; font-size: 8px; text-transform: uppercase; }
+.eg-xp-num { margin-left: auto; color: var(--c-moneda3); }
+.eg-xp-barra { position: relative; height: 20px; padding: 3px; background: var(--c-borde); border: 3px solid var(--c-piedra3); overflow: hidden; }
+.eg-xp-relleno { display: block; height: 100%; background: var(--acierto); box-shadow: inset 0 4px 0 #9BE58F, inset 0 -4px 0 #2C7A2A; position: relative; }
+.eg-xp-marcas { position: absolute; inset: 3px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, transparent 0 calc(10% - 3px), rgba(42, 26, 14, 0.55) calc(10% - 3px) 10%); }
+.eg-xp-compacta .eg-xp-barra { height: 14px; padding: 2px; border-width: 2px; }
+
+/* ---------- Modal sube de nivel ---------- */
+.eg-modal-fondo { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(12, 14, 30, 0.78); }
+.eg-modal { position: relative; overflow: hidden; width: min(100%, 380px); padding: 22px 16px 18px; text-align: center; color: var(--texto);
+  background: var(--c-fondo2); border: 4px solid var(--c-borde); box-shadow: inset 0 0 0 3px var(--r-leg), 0 8px 0 rgba(0, 0, 0, 0.4); }
+.eg-modal > *:not(.eg-rayos) { position: relative; z-index: 1; }
+.eg-modal h2 { margin: 6px 0 4px; font-size: 15px; line-height: 1.5; color: var(--c-moneda3); text-shadow: 3px 3px 0 var(--c-borde); }
+.eg-modal-pre { margin: 0; font-family: var(--fuente-pixel); font-size: 9px; color: var(--r-leg2); letter-spacing: 2px; text-transform: uppercase; }
+.eg-rayos { position: absolute; left: 50%; top: 45%; width: 560px; height: 560px; margin: -280px 0 0 -280px; z-index: 0; border-radius: 50%;
+  background: repeating-conic-gradient(rgba(255, 226, 122, 0.28) 0 10deg, transparent 10deg 24deg);
+  -webkit-mask: radial-gradient(closest-side, #000 30%, transparent 100%); mask: radial-gradient(closest-side, #000 30%, transparent 100%); }
+.eg-evolucion { display: flex; align-items: flex-end; justify-content: center; gap: 14px; margin: 14px 0 6px; }
+.eg-evo-viejo { opacity: 0.55; filter: grayscale(0.6); }
+.eg-evo-flecha { font-family: var(--fuente-pixel); font-size: 14px; color: var(--c-moneda); align-self: center; }
+.eg-evo-nuevo { filter: drop-shadow(0 0 8px var(--r-leg2)); }
+.eg-modal-boton { min-height: 52px; min-width: 180px; margin-top: 8px; font-size: 12px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .eg-llama { animation: eg-flamea 0.5s steps(2) infinite; }
+  .eg-racha-pendiente .eg-llama { animation: eg-flamea 1.2s steps(2) infinite; }
+  .eg-racha-num { animation: eg-pop 0.3s steps(3); }
+  .eg-meta-lleno { animation: eg-segmento 0.45s steps(4) calc(var(--i, 0) * 120ms) both; }
+  .eg-meta-ok svg { animation: eg-latido 1s steps(2) 3; }
+  .eg-xp-sube .eg-xp-relleno::after { content: ""; position: absolute; top: 0; bottom: 0; right: 0; width: 6px; background: #FFF6D8; animation: eg-chispa 0.15s steps(2) infinite; }
+  .eg-modal { animation: eg-aparece 0.45s cubic-bezier(.2, 1.4, .5, 1) both; }
+  .eg-rayos { animation: eg-gira 10s linear infinite; }
+  .eg-evo-nuevo { animation: eg-evoluciona 1.1s steps(8) 0.2s both; }
+  .eg-evo-flecha { animation: eg-latido 0.6s steps(2) infinite; }
+}
+@keyframes eg-flamea { 50% { transform: scale(1.06, 1.1) skewX(-4deg); } }
+@keyframes eg-pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@keyframes eg-segmento { from { opacity: 0; stroke-width: 2; } }
+@keyframes eg-latido { 50% { transform: scale(1.06); } }
+@keyframes eg-chispa { 50% { opacity: 0.2; } }
+@keyframes eg-aparece { from { transform: scale(0.4); opacity: 0; } }
+@keyframes eg-gira { to { transform: rotate(360deg); } }
+@keyframes eg-evoluciona { 0%, 20%, 40% { filter: brightness(3) drop-shadow(0 0 8px #fff); opacity: 0.3; } 10%, 30%, 50% { filter: none; opacity: 1; } 100% { filter: drop-shadow(0 0 8px var(--r-leg2)); opacity: 1; } }

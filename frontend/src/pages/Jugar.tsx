@@ -2,13 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { Ayuda, CofreAbierto, EstadoMascota, FinIntento, IntentoIniciado, RespuestaPregunta, ResultadoRespuesta, TipoPregunta } from "../api";
 import { useApi, useEstadoJuego } from "../contexto";
+import { ANFITRIONES, type FichaPersonaje } from "../arte";
+import type { Bioma } from "../escenas";
 import { Corazones } from "../components/Corazones";
-import { Mascota } from "../components/Mascota";
-import { ABIERTAS, PreguntaVista } from "../components/Pregunta";
+import { ABIERTAS, PreguntaVista, esEscritura } from "../components/Pregunta";
 import { Temporizador } from "../components/Temporizador";
-import { Moneda } from "../components/Iconos";
-import { Sprite } from "../components/Sprite";
+import { EscenaNivel, type GestoMascota, type Reaccion } from "../components/juego/EscenaNivel";
+import { MascotaPanel } from "../components/juego/MascotaPanel";
+import { BotonSonido, Combo, ContadorXp, Progreso, type Marca } from "../components/juego/Hud";
+import { Cortinilla, type EstadoCortina } from "../components/juego/Cortinilla";
+import { FinNivel } from "../components/juego/FinNivel";
+import { CapaParticulas, alAzar, esCasi, momentos, pausa, siguienteRacha, tocar, useContador, useEfectos } from "../efectos";
 import { mensajeError } from "../lib/validacion";
+import "../components/juego/juego.css";
 
 /** ¿Puede ayudar la mascota en este tipo de pregunta? (PLAN: común solo MC/VF; rara además completar/numérica/ordenar; legendaria todo). */
 export function ayudaPermitida(m: EstadoMascota | null, tipo: TipoPregunta): boolean {
@@ -26,6 +32,37 @@ function textoRespuesta(r: RespuestaPregunta, opciones?: string[] | null, tipo?:
   if (Array.isArray(r)) return r.join(" / ");
   return String(r);
 }
+
+// ---- Elenco del nivel ----
+const ANFITRIONES_RESERVA: FichaPersonaje[] = [
+  { id: "anfitrion/buho-bibliotecario", nombre: "Búho bibliotecario", rol: "anfitrion" },
+  { id: "anfitrion/mago", nombre: "Mago", rol: "anfitrion" },
+  { id: "anfitrion/alquimista", nombre: "Alquimista", rol: "anfitrion" },
+];
+function hash(s: string): number {
+  let h = 7;
+  for (const c of s) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
+/** Anfitrión estable por nivel (mismo nivel, mismo anfitrión). Nunca enemigos: esos son del nivel final. */
+export function elegirAnfitrion(nivelId: string): FichaPersonaje {
+  const lista = ANFITRIONES.filter((a) => a.rol === "anfitrion");
+  const l = lista.length ? lista : ANFITRIONES_RESERVA;
+  return l[hash(nivelId) % l.length];
+}
+export function biomaPara(f: FichaPersonaje, nivelId: string): Bioma {
+  const id = f.id.toLowerCase();
+  if (/buho|owl|biblio|libro|book|tinta|ink/.test(id)) return "biblioteca";
+  if (/mag|astr|bard/.test(id)) return "noche";
+  if (/alqu|alch|golem|robot/.test(id)) return "cueva";
+  return (["pradera", "bosque"] as const)[hash(nivelId) % 2];
+}
+
+const BIEN = ["¡Así se hace!", "¡Exacto!", "¡Brillante!", "¡Lo tienes!", "¡Bien pensado!", "¡Correctísimo!"];
+const RACHA = ["¡Imparable!", "¡Qué racha!", "¡Estás en llamas!", "¡Sigue así!"];
+const MAL = ["Mira la correcta: así se aprende.", "Tranquilo, de los errores se aprende.", "Buen intento, sigamos.", "¡Ánimo! La próxima es tuya."];
+const CASI = ["¡Casi! Estuviste muy cerca.", "¡Uf, por poquito!", "¡Casi casi! Ya casi la tienes."];
+const TIEMPO = "¡Se acabó el tiempo! No pasa nada.";
 
 export function Jugar() {
   const api = useApi();
@@ -47,8 +84,35 @@ export function Jugar() {
   const [error, setError] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [calentamiento, setCalentamiento] = useState(false);
+  // Sensación de juego
+  const [racha, setRacha] = useState(0);
+  const [mejorRacha, setMejorRacha] = useState(0);
+  const [casi, setCasi] = useState(false);
+  const [marcas, setMarcas] = useState<Marca[]>([]);
+  const [aciertos, setAciertos] = useState(0);
+  const [reaccion, setReaccion] = useState<Reaccion>("pregunta");
+  const [comentario, setComentario] = useState<string | null>(null);
+  const [herido, setHerido] = useState(false);
+  const [rapido, setRapido] = useState(false);
+  const [gesto, setGesto] = useState<GestoMascota>("quieta");
+  const [avisoMascota, setAvisoMascota] = useState<string | null>(null);
+  const [ayudando, setAyudando] = useState(false);
+  const [golpeXp, setGolpeXp] = useState(0);
+  const [sacudir, setSacudir] = useState(false);
+  const [cortina, setCortina] = useState<EstadoCortina>("descubrir");
+
   const inicio = useRef(Date.now());
   const siguienteBtn = useRef<HTMLButtonElement>(null);
+  const zona = useRef<HTMLDivElement>(null);
+  const xpRef = useRef<HTMLSpanElement>(null);
+  const saltarTecleo = useRef<() => void>(() => {});
+  const xpMostrada = useContador(xp, { retraso: 650, duracion: 500 });
+  const [xpAntes, setXpAntes] = useState<number | null>(null);
+  useEfectos(); // despierta el audio en el primer toque
+
+  const anfitrion = elegirAnfitrion(nivelId);
+  const bioma = biomaPara(anfitrion, nivelId);
+  const tier = Math.max(1, ...Object.values(estado?.tier_por_tema ?? {}));
 
   useEffect(() => {
     if (estado) { setVidas(estado.vidas); setMascota(estado.mascota); }
@@ -57,7 +121,13 @@ export function Jugar() {
   useEffect(() => {
     let vivo = true;
     setIntento(null); setIdx(0); setResultado(null); setAyudas([]); setFin(null); setCofre(null); setXp(0); setError(null);
-    api.iniciarNivel(nivelId).then((r) => { if (vivo) { setIntento(r); inicio.current = Date.now(); } }).catch((e) => vivo && setError(mensajeError(e)));
+    setRacha(0); setMejorRacha(0); setCasi(false); setAciertos(0); setReaccion("pregunta"); setComentario(null); setHerido(false); setGesto("quieta"); setAvisoMascota(null);
+    setCortina((c) => (c === "cubrir" || c === "descubrir" ? "descubrir" : null));
+    const t = setTimeout(() => vivo && setCortina(null), 800);
+    api.iniciarNivel(nivelId).then((r) => {
+      if (!vivo) return;
+      setIntento(r); setMarcas(r.preguntas.map(() => null)); inicio.current = Date.now();
+    }).catch((e) => vivo && setError(mensajeError(e)));
     if (cursoId) {
       api.camino(cursoId).then((c) => {
         const n = c.secciones.flatMap((s) => s.niveles).find((x) => String(x.id) === nivelId);
@@ -65,47 +135,111 @@ export function Jugar() {
       }).catch(() => {});
     }
     void refrescar();
-    return () => { vivo = false; };
+    return () => { vivo = false; clearTimeout(t); };
   }, [api, nivelId, cursoId, refrescar]);
 
   const pregunta = intento?.preguntas[idx];
 
+  const celebrar = useCallback((res: ResultadoRespuesta, nuevaRacha: number, vidaPerdida: boolean) => {
+    // Breve "hit-stop": la loseta se congela un instante antes de que estallen los efectos.
+    setTimeout(() => {
+      const desde = zona.current?.querySelector(".correcta") ?? zona.current?.querySelector(".jg-responder") ?? zona.current;
+      if (res.correcta) {
+        momentos.acierto({ desde, hacia: xpRef.current, racha: nuevaRacha, xp: res.xp_ganada, alLlegar: () => setGolpeXp((g) => g + 1) });
+      } else {
+        momentos.error({ el: zona.current, vidaPerdida });
+        setSacudir(true);
+        setTimeout(() => setSacudir(false), 450);
+      }
+    }, 90);
+  }, []);
+
   const responder = useCallback(async (r: RespuestaPregunta | null) => {
     if (!intento || !pregunta || resultado || enviando) return;
     setEnviando(true);
+    saltarTecleo.current();
     try {
-      const res = await api.responder(intento.intento_id, { pregunta_id: pregunta.id, respuesta: r, tiempo_ms: Date.now() - inicio.current });
+      const tiempo = Date.now() - inicio.current;
+      const res = await api.responder(intento.intento_id, { pregunta_id: pregunta.id, respuesta: r, tiempo_ms: tiempo });
+      const vidaPerdida = res.vidas < vidas;
+      const nuevaRacha = siguienteRacha(racha, res.correcta);
+      const cerca = !res.correcta && esCasi(pregunta.tipo, r, res.respuesta_correcta, pregunta.tolerancia);
       setResultado(res);
       setVidas(res.vidas);
       setMascota(res.mascota);
       setXp((x) => x + res.xp_ganada);
+      setRacha(nuevaRacha);
+      setMejorRacha((m) => Math.max(m, nuevaRacha));
+      setCasi(cerca);
+      setMarcas((m) => m.map((x, i) => (i === idx ? (res.correcta ? "bien" : "mal") : x)));
+      if (res.correcta) setAciertos((a) => a + 1);
+      setReaccion(res.correcta ? "acierto" : "error");
+      setHerido(vidaPerdida);
+      setRapido(res.correcta && tiempo < pregunta.tiempo_s * 1000 * 0.35);
+      setComentario(res.correcta ? alAzar(nuevaRacha >= 3 ? RACHA : BIEN) : r === null ? TIEMPO : alAzar(cerca ? CASI : MAL));
+      celebrar(res, nuevaRacha, vidaPerdida);
       setTimeout(() => siguienteBtn.current?.focus(), 0);
     } catch (e) {
       setError(mensajeError(e));
     } finally {
       setEnviando(false);
     }
-  }, [api, intento, pregunta, resultado, enviando]);
+  }, [api, intento, pregunta, resultado, enviando, vidas, racha, idx, celebrar]);
 
-  const pedirAyuda = async () => {
-    if (!intento || !pregunta) return;
-    try {
-      const a = await api.ayuda(intento.intento_id, pregunta.id);
-      setAyudas((x) => [...x, a]);
-      setMascota((m) => m && { ...m, ayudas_restantes_nivel: Math.max(0, m.ayudas_restantes_nivel - 1), comida: Math.max(0, m.comida - 1) });
-    } catch (e) {
-      setError(mensajeError(e));
+  const pedirAyuda = useCallback(async () => {
+    if (!intento || !pregunta || resultado || ayudando) return;
+    if (!mascota || !mascota.viva) return;
+    if (!ayudaPermitida(mascota, pregunta.tipo) || mascota.ayudas_restantes_nivel <= 0) {
+      setGesto("niega");
+      setAvisoMascota(mascota.ayudas_restantes_nivel <= 0 ? "Ya no le quedan ayudas en este nivel." : "No puede ayudar en este tipo de pregunta.");
+      setTimeout(() => setGesto("quieta"), 700);
+      return;
     }
-  };
+    setAyudando(true);
+    setAvisoMascota(null);
+    setGesto("olfatea");
+    tocar("ayuda");
+    try {
+      const [a] = await Promise.all([api.ayuda(intento.intento_id, pregunta.id), pausa(650)]);
+      setAyudas((x) => [...x, a]);
+      setMascota((m) => {
+        if (!m) return m;
+        const comida = Math.max(0, m.comida - 1);
+        return { ...m, ayudas_restantes_nivel: Math.max(0, m.ayudas_restantes_nivel - 1), comida, hambrienta: m.hambrienta || comida === 0 };
+      });
+      setGesto("quieta");
+    } catch (e) {
+      setGesto("niega");
+      setAvisoMascota(mensajeError(e));
+      setTimeout(() => setGesto("quieta"), 700);
+    } finally {
+      setAyudando(false);
+    }
+  }, [api, intento, pregunta, resultado, ayudando, mascota]);
+
+  // Atajos globales: H pide ayuda; cualquier número completa el globo del anfitrión.
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || esEscritura(e.target)) return;
+      if (e.key === "h" || e.key === "H") { e.preventDefault(); void pedirAyuda(); }
+      else if (/^[1-9]$/.test(e.key)) saltarTecleo.current();
+    };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, [pedirAyuda]);
 
   const siguiente = async () => {
     if (!intento) return;
     if (idx + 1 < intento.preguntas.length) {
-      setIdx(idx + 1); setResultado(null); setAyudas([]); setError(null);
+      tocar("whoosh");
+      setIdx(idx + 1); setResultado(null); setAyudas([]); setError(null); setCasi(false);
+      setReaccion("pregunta"); setComentario(null); setHerido(false); setRapido(false); setAvisoMascota(null);
       inicio.current = Date.now();
       return;
     }
     try {
+      setXpAntes(Math.max(0, ...Object.values(estado?.xp_total_por_tema ?? {})));
+      tocar("whoosh");
       setFin(await api.terminar(intento.intento_id));
       void refrescar();
     } catch (e) {
@@ -115,8 +249,10 @@ export function Jugar() {
 
   const siguienteNivel = async () => {
     if (!cursoId) return nav("/");
+    setCortina("cubrir");
+    tocar("whoosh");
     try {
-      const c = await api.camino(cursoId);
+      const [c] = await Promise.all([api.camino(cursoId), pausa(550)]);
       const nodos = c.secciones.flatMap((s) => s.niveles).filter((n) => n.tipo !== "cofre");
       const prox = nodos.find((n) => n.estado === "actual") ?? nodos.find((n) => n.estado === "disponible");
       if (prox) nav(`/jugar/${prox.id}?curso=${cursoId}`);
@@ -132,67 +268,88 @@ export function Jugar() {
   };
 
   const volver = cursoId ? `/?curso=${cursoId}` : "/";
+  const capas = <><CapaParticulas /><Cortinilla estado={cortina} /></>;
 
   if (error && !intento) return <><p className="error" role="alert">{error}</p><Link to={volver} className="boton secundario">Volver al camino</Link></>;
-  if (!intento) return <p>Preparando el nivel…</p>;
+  if (!intento) return <div className="jg-nivel">{capas}<p className="jg-cargando">Preparando el nivel…</p></div>;
 
   if (fin) {
     return (
-      <section className="panel centro transicion" aria-labelledby="fin-tit">
-        <h1 id="fin-tit">{fin.perfecto ? "¡Nivel perfecto!" : "¡Nivel completado!"}</h1>
-        <p className="grande">+{fin.xp_ganada} XP</p>
-        <p className="fila" style={{ justifyContent: "center" }}><Moneda tam={22} /> +{fin.monedas} monedas</p>
-        <p><Corazones vidas={fin.vidas} /></p>
-        {fin.drop && <p className="exito">Encontraste: <strong>{fin.drop.nombre}</strong> ({fin.drop.rareza})</p>}
-        {fin.cofre && !cofre && (
-          <div>
-            <Sprite src={fin.cofre.tipo === "legendario" ? "/sprites/chest-legendary.svg" : "/sprites/chest-normal.svg"} alt="Cofre" tam={96} />
-            <p><button className="boton" onClick={abrirCofre}>Abrir cofre</button></p>
-          </div>
-        )}
-        {cofre && <p className="exito">El cofre tenía +{cofre.monedas} monedas{cofre.items.length ? ` y ${cofre.items.map((i) => i.nombre).join(", ")}` : ""}.</p>}
-        {error && <p className="error" role="alert">{error}</p>}
-        <div className="fila" style={{ justifyContent: "center", marginTop: 16 }}>
-          <button className="boton" onClick={siguienteNivel} autoFocus>Siguiente nivel ▶</button>
-          <Link to={volver} className="boton secundario">Volver al camino</Link>
-        </div>
-      </section>
+      <div className="jg-nivel">
+        {capas}
+        <FinNivel fin={fin} cofre={cofre} onAbrirCofre={abrirCofre} onSiguiente={siguienteNivel} volver={volver} error={error}
+          bioma={bioma} anfitrion={anfitrion} tier={tier} aciertos={aciertos} total={intento.preguntas.length}
+          mejorRacha={mejorRacha} rachaDias={estado?.racha ?? 0} xpAntes={xpAntes} />
+      </div>
     );
   }
 
   if (!pregunta) return <p>Este nivel no tiene preguntas. <Link to={volver}>Volver</Link></p>;
+  const total = intento.preguntas.length;
+  const ultima = idx + 1 >= total;
 
   return (
-    <>
-      <div className="hud" role="region" aria-label="Estado del nivel">
-        <Corazones vidas={vidas} />
-        <span>{idx + 1}/{intento.preguntas.length}</span>
-        <span>XP +{xp}</span>
-        <Temporizador segundos={pregunta.tiempo_s} activo={!resultado && !enviando} clave={pregunta.id} onAgotado={() => responder(null)} />
+    <div className={`jg-nivel ${sacudir ? "jg-sacude" : ""}`}>
+      {capas}
+      <header className="hud jg-hud" role="region" aria-label="Estado del nivel">
+        <div className="jg-hud-fila">
+          <Link to={volver} className="jg-salir" aria-label="Salir al camino">✕</Link>
+          <Progreso marcas={marcas} actual={idx} />
+          <span className="jg-hud-cuenta">{idx + 1}/{total}</span>
+          <BotonSonido />
+        </div>
+        <div className="jg-hud-fila">
+          <Corazones vidas={vidas} />
+          <Combo racha={racha} />
+          <ContadorXp ref={xpRef} valor={xpMostrada} golpe={golpeXp} />
+        </div>
+        <Temporizador segundos={pregunta.tiempo_s} activo={!resultado && !enviando} clave={pregunta.id} onAgotado={() => responder(null)}
+          onSegundo={(seg) => tocar("tic", seg)} />
+      </header>
+      {calentamiento && <p className="aviso jg-aviso">Calentamiento: aquí los errores no cuestan vidas.</p>}
+
+      <EscenaNivel key={`esc-${pregunta.id}`} bioma={bioma} anfitrion={anfitrion} reaccion={reaccion} enunciado={pregunta.enunciado}
+        idEnunciado={`enun-${pregunta.id}`} comentario={comentario} tier={tier} mascota={mascota} gestoMascota={gesto} herido={herido}
+        alRegistrarSaltar={(f) => { saltarTecleo.current = f; }}
+        extra={rapido ? <div className="jg-rapido" aria-hidden="true">¡Rápido!</div> : null} />
+
+      <MascotaPanel mascota={mascota} onAyuda={resultado ? undefined : pedirAyuda} ayudaPosible={ayudaPermitida(mascota, pregunta.tipo) && !ayudando}
+        onRevive={refrescar} aviso={avisoMascota} />
+
+      <div className="jg-zona" ref={zona} key={pregunta.id}>
+        <PreguntaVista pregunta={pregunta} ayudas={ayudas} resultado={resultado} onResponder={responder} enviando={enviando} mostrarEnunciado={false} />
       </div>
-      {calentamiento && <p className="aviso">Calentamiento: aquí los errores no cuestan vidas.</p>}
-      <div className="panel oscuro">
-        <Mascota mascota={mascota} onAyuda={resultado ? undefined : pedirAyuda} ayudaPosible={ayudaPermitida(mascota, pregunta.tipo)} onRevive={refrescar} />
-      </div>
-      <div className="panel transicion" key={pregunta.id}>
-        <PreguntaVista pregunta={pregunta} ayudas={ayudas} resultado={resultado} onResponder={responder} enviando={enviando} />
-        {resultado && (
-          <div className={`feedback ${resultado.correcta ? "bien" : "mal"}`} role="status" aria-live="polite">
-            <h2>{resultado.correcta ? "¡Correcto!" : "Incorrecto"}</h2>
-            {!resultado.correcta && !ABIERTAS.includes(pregunta.tipo) && (
-              <p>Respuesta correcta: <strong>{textoRespuesta(resultado.respuesta_correcta, pregunta.opciones, pregunta.tipo)}</strong></p>
-            )}
-            {ABIERTAS.includes(pregunta.tipo) && typeof resultado.respuesta_correcta === "string" && <p>Referencia: {resultado.respuesta_correcta}</p>}
-            <p>{resultado.explicacion}</p>
-            {resultado.xp_ganada > 0 && <p>+{resultado.xp_ganada} XP</p>}
-            <button ref={siguienteBtn} className="boton" onClick={siguiente}>
-              {idx + 1 < intento.preguntas.length ? "Siguiente" : "Terminar nivel"}
-            </button>
+
+      {resultado && (
+        <div className={`feedback jg-feedback ${resultado.correcta ? "bien" : "mal"} ${casi ? "jg-casi" : ""}`} role="status" aria-live="polite">
+          <div className="jg-fb-cabeza">
+            <span className="jg-fb-icono" aria-hidden="true">{resultado.correcta ? "✓" : casi ? "~" : "✗"}</span>
+            <h2>{resultado.correcta ? "¡Correcto!" : casi ? "¡Casi! Incorrecto" : "Incorrecto"}</h2>
           </div>
-        )}
-        {error && <p className="error" role="alert">{error}</p>}
-      </div>
-      <p><Link to={volver}>Salir al camino</Link></p>
-    </>
+          <div className="jg-chips">
+            {resultado.xp_ganada > 0 && <span className="jg-chip jg-chip-xp">+{resultado.xp_ganada} XP</span>}
+            {rapido && <span className="jg-chip jg-chip-rapido">¡Rápido!</span>}
+            {racha >= 2 && <span className="jg-chip jg-chip-racha">Racha {racha}</span>}
+            {herido && <span className="jg-chip jg-chip-vida">−1 vida</span>}
+            {!resultado.correcta && !herido && calentamiento && <span className="jg-chip">Sin costo: calentamiento</span>}
+          </div>
+          {!resultado.correcta && !ABIERTAS.includes(pregunta.tipo) && (
+            <p className="jg-fb-correcta">La respuesta correcta es: <strong>{textoRespuesta(resultado.respuesta_correcta, pregunta.opciones, pregunta.tipo)}</strong></p>
+          )}
+          {ABIERTAS.includes(pregunta.tipo) && typeof resultado.respuesta_correcta === "string" && <p>Referencia: {resultado.respuesta_correcta}</p>}
+          {resultado.explicacion && (
+            <div className="jg-fb-explica">
+              {!resultado.correcta && <span className="jg-fb-porque">¿Por qué?</span>}
+              <p>{resultado.explicacion}</p>
+            </div>
+          )}
+          <button ref={siguienteBtn} className="boton jg-continuar" onClick={siguiente}>
+            {resultado.correcta ? (ultima ? "Terminar nivel" : "Siguiente") : ultima ? "Entendido · Terminar nivel" : "Entendido"}
+            <span aria-hidden="true"> ▶</span>
+          </button>
+        </div>
+      )}
+      {error && <p className="error" role="alert">{error}</p>}
+    </div>
   );
 }
