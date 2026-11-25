@@ -44,12 +44,20 @@ terminar el trabajo (`listo` o `error`). `GET /trabajos/{id}.mensaje` informa po
 de su documento.
 
 `config` = `{titulo?, num_preguntas: 5-200, dificultad: 1-5, tipos: [TipoPregunta], instrucciones: str ≤ 2000,
-tiempos_por_tipo?: {tipo: segundos}, repaso: "fsrs"|"leitner"}`
+tiempos_por_tipo?: {tipo: segundos}, repaso: "fsrs"|"leitner", final_n?: 3-40 (10), final_g?: 60-100 (70)}`.
+`final_n` y `final_g` configuran el nivel final de cada sección (ver «Nivel final»).
 
 `TipoPregunta` ∈ `multiple_choice, true_false, fill_text, fill_code, numeric, ordering, open, math_problem, proof`
 
 `Curso` = `{id, titulo, tema, estado, secciones: [{id, titulo, orden, niveles: [{id, titulo, orden,
-es_calentamiento, preguntas: [Pregunta]}]}]}`
+es_calentamiento, es_final, preguntas: [Pregunta]}]}]}`. Cada sección termina con un nivel final
+(`Nivel.es_final`) que el pipeline añade sin generarle preguntas (`preguntas: []`; las toma de la sección al jugar).
+
+Migración (aún sin Alembic; `create_all` la crea en bases nuevas). En una base existente:
+
+```sql
+ALTER TABLE niveles ADD COLUMN es_final BOOLEAN NOT NULL DEFAULT false;
+```
 
 `Pregunta` = `{id, tipo, enunciado, opciones?: [str], respuesta: <según tipo>, tolerancia?: number,
 explicacion, pista?: str, dificultad: 1-5, tiempo_s, fuente_pagina?: int, fuente_documento?: str, valida: bool,
@@ -107,3 +115,28 @@ Acordadas con el frontend; amplían la sección "Juego" sin romperla.
    su `id` es el del cofre para `POST /juego/cofres/{id}/abrir`.
 8. `terminar.xp_ganada` es la XP total del intento (aciertos + fin de nivel + racha); `terminar.monedas` y
    `abrir.monedas` son las monedas ganadas; `cofre` = `{id, tipo: "normal"|"legendario"}`. `comprar.monedas` es el saldo.
+
+## Nivel final v0.2 (juego)
+Examen-aventura al cierre de cada sección (spec `final-level`; decisiones Q15, Q35, Q37–Q40, Q106).
+
+1. Camino: el último nodo de cada sección es `{id, titulo, estado, tipo: "final"}` (castillo). Se juega en la
+   ruta del frontend `/final/:nivelId`. Al aprobarlo aparece detrás el nodo `cofre` legendario.
+2. `POST /juego/niveles/{id}/iniciar` en un nivel final: las preguntas salen de las propias del nivel más las
+   de los demás niveles de su sección (sin `open/math_problem/proof`, salvo que no haya otras), nunca vistas
+   primero y ordenadas por dificultad creciente. `N = min(final_n, banco)`. La respuesta añade:
+   `final = {n, n_configurado, g, requeridas, margen, encuentros, aciertos, fallos, restantes, corazones,
+   resultado}` con `requeridas = ceil(N·g/100)`, `margen = N − requeridas`, `corazones = margen − fallos`,
+   `resultado ∈ "en_curso"|"victoria"|"derrota"` y
+   `encuentros = [{tipo: "comun"|"raro"|"jefe", desde, cuantas, fase2_desde?}]` (índices sobre `preguntas`;
+   común 1 pregunta, raro 2, jefe ~35 % y mínimo 2 si N ≥ 4).
+   **Gimmick del jefe (Q40)**: desde `fase2_desde` el jefe entra en furia y esas preguntas ya traen
+   `tiempo_s` reducido un 25 % (mínimo 8 s); el servidor mide con ese tiempo.
+3. `responder` en un nivel final añade `final` (mismo objeto, actualizado). Sin vidas de mascota: un fallo no
+   cambia `vidas` (Q106). Victoria temprana al llegar a `requeridas` (Q37): se puede seguir respondiendo
+   (bonus) o terminar. Derrota en cuanto `fallos > margen`: desde ahí `responder` → 409.
+4. `ayuda` → 409 y `items/usar` con `intento_id` de un nivel final → 409 (Q38, Q106).
+5. `terminar` en un nivel final añade `final: {..., aprobado: bool}`. Aprobado: XP de nivel + jefe (+100),
+   cofre legendario (Q15; solo la primera vez, repetir da monedas) y cuenta como nivel completado (desbloquea
+   la siguiente sección). Reprobado: `monedas: 0`, sin cofre ni progreso; solo queda la XP de los aciertos.
+   Las preguntas sin responder no cuentan como timeout. Abandonar = no llamar `terminar` (o iniciar otro
+   nivel): la partida se descarta y las preguntas quedan como vistas.

@@ -8,7 +8,17 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    false,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, utcnow
@@ -57,6 +67,9 @@ class Nivel(Base):
     titulo: Mapped[str] = mapped_column(String(200))
     orden: Mapped[int] = mapped_column(Integer)
     es_calentamiento: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Nivel final de la sección (examen-aventura): el último de cada sección. Sus preguntas
+    # salen de las propias (si tiene) y de las de los demás niveles de la sección.
+    es_final: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # Resumen generado por la IA: sirve para regenerar preguntas cuando el PDF ya se borró.
     resumen: Mapped[str] = mapped_column(Text, default="")
     pagina_inicio: Mapped[int | None] = mapped_column(Integer, nullable=True)

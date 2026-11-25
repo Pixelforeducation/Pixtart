@@ -1,6 +1,5 @@
 import { Link, NavLink, Navigate, Outlet, Route, Routes, useLocation } from "react-router-dom";
-import NivelFinal from "./nivel-final";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { useEstadoJuego, useSesion } from "./contexto";
 import { Engrane, IconoNav, Moneda } from "./components/Iconos";
 import { Login, Registro } from "./pages/Auth";
@@ -11,6 +10,16 @@ import { Inicio } from "./pages/Inicio";
 import { Jugar } from "./pages/Jugar";
 import { Perfil } from "./pages/Perfil";
 import { Tienda } from "./pages/Tienda";
+
+// Nivel final: chunk aparte (y Phaser en otro, cargado por el propio nivel).
+const NivelFinalPerezoso = lazy(() => import("./nivel-final"));
+function NivelFinal() {
+  return (
+    <Suspense fallback={<p className="pix-font centro" style={{ fontSize: 12 }}>Cargando nivel final…</p>}>
+      <NivelFinalPerezoso />
+    </Suspense>
+  );
+}
 
 const DESTINOS = [
   { a: "/", nombre: "inicio", txt: "Inicio" },
@@ -70,6 +79,8 @@ export function App() {
     <Routes>
       <Route path="/entrar" element={<SoloInvitado><Login /></SoloInvitado>} />
       <Route path="/registro" element={<SoloInvitado><Registro /></SoloInvitado>} />
+      {/* Demostración jugable sin cuenta ni backend. */}
+      <Route path="/final/demo" element={<main className="principal"><NivelFinal /></main>} />
       <Route element={<Marco />}>
         <Route index element={<Inicio />} />
         <Route path="crear" element={<CrearCurso />} />

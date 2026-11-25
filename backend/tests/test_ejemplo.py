@@ -2,7 +2,7 @@ from datetime import date
 
 import pytest
 
-from app.ejemplo.curso_regex import CURSO, sembrar
+from app.ejemplo.curso_regex import CURSO, FINALES, sembrar
 from app.models.usuarios import Usuario
 
 
@@ -19,12 +19,15 @@ def test_curso_de_ejemplo_valido_y_completo(db, usuario):
     curso = sembrar(db, "ANA@example.com")
     assert curso.estado == "publicado"
     preguntas = [p for s in curso.secciones for n in s.niveles for p in n.preguntas]
-    assert len(preguntas) == sum(len(ps) for _, nivs in CURSO for _, _, ps in nivs)
+    assert len(preguntas) == (sum(len(ps) for _, nivs in CURSO for _, _, ps in nivs)
+                              + sum(len(ps) for _, ps in FINALES))
     assert all(p.valida for p in preguntas)
     tipos = {p.tipo for p in preguntas}
     assert tipos >= {"multiple_choice", "true_false", "fill_text", "fill_code", "numeric",
                      "ordering", "open", "math_problem", "proof"}
     assert all(s.niveles[0].es_calentamiento for s in curso.secciones)
+    assert all(s.niveles[-1].es_final for s in curso.secciones)
+    assert all(6 <= len(s.niveles[-1].preguntas) <= 8 for s in curso.secciones)
     orden = next(p for p in preguntas if p.tipo == "ordering")
     assert orden.respuesta != list(range(len(orden.opciones)))  # barajado: no viene resuelto
     assert {p.tiempo_s for p in preguntas if p.tipo in ("math_problem", "proof")} == {900}

@@ -36,8 +36,8 @@ from app.models.juego import (
     TarjetaRepaso,
 )
 from app.models.usuarios import Usuario
-from app.play import ids, serial
-from app.play.fuente_cursos import CaminoCurso, FuenteCursos, PreguntaFuente
+from app.play import final, ids, serial
+from app.play.fuente_cursos import CaminoCurso, FuenteCursos, NivelInfo, PreguntaFuente
 from app.play.pista import ErrorPista, GeneradorPista
 
 PREGUNTAS_POR_NIVEL = 10
@@ -89,6 +89,12 @@ def _interno(item_id: str) -> str:
 
 def _json_respuesta(valor: Any) -> Any:
     return list(valor) if isinstance(valor, tuple) else valor
+
+
+def _tipo_nodo(n: NivelInfo) -> str:
+    if n.es_final:
+        return "final"
+    return "calentamiento" if n.es_calentamiento else "leccion"
 
 
 def _motor(nombre: str) -> MotorRepaso:
@@ -265,7 +271,7 @@ class Juego:
                         "id": n.id,
                         "titulo": n.titulo,
                         "estado": estados[n.id],
-                        "tipo": "calentamiento" if n.es_calentamiento else "leccion",
+                        "tipo": _tipo_nodo(n),
                     }
                 )
                 # El cofre ganado tras este nivel: su id sirve para /cofres/{id}/abrir.
@@ -299,68 +305,37 @@ class Juego:
         estado_nivel = self._estados_niveles(camino)[nivel_id]
         if estado_nivel == "bloqueado":
             raise AccionInvalida("Ese nivel aún está bloqueado.")
-        propias = self.fuente.preguntas(self.db, self.usuario.id, nivel_id)
-        if not propias:
-            raise AccionInvalida("Este nivel no tiene preguntas.")
-
-        # Repaso: tarjetas vencidas de otros niveles ya completados del mismo curso.
         tarjetas = self._tarjetas(camino.id)
-        hechos = self._completados(camino.id)
-        motor = _motor(camino.repaso)
-        vencidas_filas = sorted(
-            (
-                t
-                for t in tarjetas.values()
-                if t.tarjeta is not None
-                and t.nivel_id != nivel_id
-                and t.nivel_id in hechos
-                and motor.vencida(serial.tarjeta_desde_json(t.tarjeta), self.ahora)
-            ),
-            key=lambda t: serial.tarjeta_desde_json(t.tarjeta).vence,
-        )
-        banco: dict[str, tuple[str, PreguntaFuente]] = {
-            pf.pregunta.id: (nivel_id, pf) for pf in propias
-        }
-        cache: dict[str, list[PreguntaFuente]] = {}
-        for t in vencidas_filas:
-            if t.nivel_id not in cache:
-                cache[t.nivel_id] = self.fuente.preguntas(self.db, self.usuario.id, t.nivel_id)
-            for pf in cache[t.nivel_id]:
-                if pf.pregunta.id == t.pregunta_id:
-                    banco[pf.pregunta.id] = (t.nivel_id, pf)
-        vencidas = [t.pregunta_id for t in vencidas_filas if t.pregunta_id in banco]
         vistas = {pid: serial.utc(t.vista_en) for pid, t in tarjetas.items()}
-        n = min(PREGUNTAS_POR_NIVEL, len(propias))
-        elegidas = elegir_preguntas(
-            list(banco), n, self.rng, vistas=vistas, vencidas=vencidas
-        )
-
-        # Abandona otros intentos en curso (el cupo de ayudas es por nivel).
-        for viejo in self.db.scalars(
-            select(IntentoNivel).where(
-                IntentoNivel.usuario_id == self.usuario.id, IntentoNivel.estado == "en_curso"
-            )
-        ):
-            viejo.estado = "abandonado"
-
+        info_final: dict[str, Any] | None = None
+        furia: set[str] = set()
+        if nivel.es_final:
+            banco, elegidas, info_final, furia = self._seleccion_final(camino, nivel, vistas)
+        else:
+            banco, elegidas = self._seleccion_leccion(camino, nivel_id, tarjetas, vistas)
+        self._abandonar_en_curso()
+        requeridas = info_final["requeridas"] if info_final else None
         entradas, jugables = [], []
         for pid in elegidas:
             nid, pf = banco[pid]
             p = pf.pregunta
-            t_s = pf.tiempo_s or tiempo_limite(
+            t_s = int(pf.tiempo_s or tiempo_limite(
                 p.tipo, p.dificultad, p.enunciado, tiempos_por_tipo=camino.tiempos_por_tipo
-            )
-            entradas.append(
-                {
-                    "pregunta_id": pid,
-                    "nivel_id": nid,
-                    "tiempo_s": int(t_s),
-                    "respondida": False,
-                    "correcta": None,
-                    "timeout": False,
-                    "ayudas_dadas": [],
-                }
-            )
+            ))
+            if pid in furia:
+                t_s = final.tiempo_furia(t_s)
+            entrada = {
+                "pregunta_id": pid,
+                "nivel_id": nid,
+                "tiempo_s": t_s,
+                "respondida": False,
+                "correcta": None,
+                "timeout": False,
+                "ayudas_dadas": [],
+            }
+            if requeridas is not None:
+                entrada["requeridas"] = requeridas
+            entradas.append(entrada)
             jugables.append(
                 {
                     "id": pid,
@@ -368,7 +343,7 @@ class Juego:
                     "enunciado": p.enunciado,
                     "opciones": list(p.opciones) if p.opciones else None,
                     "dificultad": p.dificultad,
-                    "tiempo_s": int(t_s),
+                    "tiempo_s": t_s,
                     "es_calentamiento": nivel.es_calentamiento,
                     # Solo en abiertas, para autoevaluarse; nunca la respuesta de las demás.
                     **({"explicacion": pf.explicacion} if p.tipo in TIPOS_ABIERTOS else {}),
@@ -405,7 +380,90 @@ class Juego:
         self.db.add(intento)
         self.vidas = mc.iniciar_nivel(self.vidas, self.ahora, es_final=nivel.es_final)
         self.guardar()
-        return {"intento_id": intento.id, "preguntas": jugables}
+        salida: dict[str, Any] = {"intento_id": intento.id, "preguntas": jugables}
+        if info_final is not None:
+            salida["final"] = {**info_final, **final.progreso(entradas, info_final["requeridas"])}
+        return salida
+
+    def _abandonar_en_curso(self) -> None:
+        """Abandona otros intentos en curso (el cupo de ayudas es por nivel)."""
+        for viejo in self.db.scalars(
+            select(IntentoNivel).where(
+                IntentoNivel.usuario_id == self.usuario.id, IntentoNivel.estado == "en_curso"
+            )
+        ):
+            viejo.estado = "abandonado"
+
+    def _seleccion_leccion(
+        self,
+        camino: CaminoCurso,
+        nivel_id: str,
+        tarjetas: dict[str, TarjetaRepaso],
+        vistas: dict[str, datetime],
+    ) -> tuple[dict[str, tuple[str, PreguntaFuente]], list[str]]:
+        propias = self.fuente.preguntas(self.db, self.usuario.id, nivel_id)
+        if not propias:
+            raise AccionInvalida("Este nivel no tiene preguntas.")
+        # Repaso: tarjetas vencidas de otros niveles ya completados del mismo curso.
+        hechos = self._completados(camino.id)
+        motor = _motor(camino.repaso)
+        vencidas_filas = sorted(
+            (
+                t
+                for t in tarjetas.values()
+                if t.tarjeta is not None
+                and t.nivel_id != nivel_id
+                and t.nivel_id in hechos
+                and motor.vencida(serial.tarjeta_desde_json(t.tarjeta), self.ahora)
+            ),
+            key=lambda t: serial.tarjeta_desde_json(t.tarjeta).vence,
+        )
+        banco: dict[str, tuple[str, PreguntaFuente]] = {
+            pf.pregunta.id: (nivel_id, pf) for pf in propias
+        }
+        cache: dict[str, list[PreguntaFuente]] = {}
+        for t in vencidas_filas:
+            if t.nivel_id not in cache:
+                cache[t.nivel_id] = self.fuente.preguntas(self.db, self.usuario.id, t.nivel_id)
+            for pf in cache[t.nivel_id]:
+                if pf.pregunta.id == t.pregunta_id:
+                    banco[pf.pregunta.id] = (t.nivel_id, pf)
+        vencidas = [t.pregunta_id for t in vencidas_filas if t.pregunta_id in banco]
+        n = min(PREGUNTAS_POR_NIVEL, len(propias))
+        return banco, elegir_preguntas(list(banco), n, self.rng, vistas=vistas, vencidas=vencidas)
+
+    def _seleccion_final(
+        self, camino: CaminoCurso, nivel: NivelInfo, vistas: dict[str, datetime]
+    ) -> tuple[dict[str, tuple[str, PreguntaFuente]], list[str], dict[str, Any], set[str]]:
+        """Examen del nivel final: preguntas propias del nivel más las de los demás niveles de su
+        sección (sin abiertas, que se autoevalúan). Las nunca vistas primero; orden por
+        dificultad creciente para que el jefe se quede con las más difíciles."""
+        seccion = next(s for s, n in camino.niveles() if n.id == nivel.id)
+        banco: dict[str, tuple[str, PreguntaFuente]] = {}
+        abiertas: dict[str, tuple[str, PreguntaFuente]] = {}
+        origen = [nivel] + [n for n in sorted(seccion.niveles, key=lambda n: n.orden)
+                            if n.id != nivel.id and not n.es_final]
+        for n in origen:
+            for pf in self.fuente.preguntas(self.db, self.usuario.id, n.id):
+                destino = abiertas if pf.pregunta.tipo in TIPOS_ABIERTOS else banco
+                destino.setdefault(pf.pregunta.id, (n.id, pf))
+        if not banco:
+            banco = abiertas  # sección solo de abiertas: mejor eso que no poder jugar
+        if not banco:
+            raise AccionInvalida("Este nivel final no tiene preguntas.")
+        n = min(camino.final_n, len(banco))
+        elegidas = elegir_preguntas(list(banco), n, self.rng, vistas=vistas)
+        elegidas.sort(key=lambda pid: banco[pid][1].pregunta.dificultad)
+        plan = final.plan_encuentros(n)
+        jefe = plan[-1]
+        furia = set(elegidas[jefe["fase2_desde"]:]) if "fase2_desde" in jefe else set()
+        info = {
+            "g": camino.final_g,
+            "n_configurado": camino.final_n,
+            "requeridas": final.requeridas(n, camino.final_g),
+            "encuentros": plan,
+        }
+        return banco, elegidas, info, furia
 
     def _intento(self, intento_id: str, *, en_curso: bool = True) -> IntentoNivel:
         it = self.db.get(IntentoNivel, intento_id)
@@ -453,6 +511,8 @@ class Juego:
         i, e = self._entrada(it, pregunta_id)
         if e["respondida"]:
             raise AccionInvalida("Ya respondiste esa pregunta.")
+        if it.es_final and self._progreso_final(it)["resultado"] == "derrota":
+            raise AccionInvalida("El examen terminó: el aprobado ya no es alcanzable.")
         pf = self._pregunta(e)
         p = pf.pregunta
 
@@ -474,9 +534,10 @@ class Juego:
             correcta = corregir(p, respuesta) is Correccion.CORRECTA
         correcta = correcta and not timeout
 
-        self.vidas = mc.registrar_respuesta(
-            self.vidas, correcta, self.ahora, calentamiento=it.calentamiento
-        )
+        if not it.es_final:  # el nivel final no usa vidas de mascota (Q106)
+            self.vidas = mc.registrar_respuesta(
+                self.vidas, correcta, self.ahora, calentamiento=it.calentamiento
+            )
         ganada = xp.xp_respuesta(correcta)
         self.progreso = xp.sumar_xp(self.progreso, it.tema, ganada, self.ahora)
         camino = self.fuente.curso_de_nivel(self.db, self.usuario.id, it.nivel_id)
@@ -490,7 +551,7 @@ class Juego:
         it.segundos_extra = 0
         it.xp_ganada = (it.xp_ganada or 0) + ganada
         self.guardar()
-        return {
+        salida = {
             "correcta": correcta,
             "respuesta_correcta": _json_respuesta(p.respuesta),
             "explicacion": pf.explicacion,
@@ -498,6 +559,16 @@ class Juego:
             "mascota": self._vista_mascota(),
             "xp_ganada": ganada,
         }
+        if it.es_final:
+            salida["final"] = self._progreso_final(it)
+        return salida
+
+    @staticmethod
+    def _progreso_final(it: IntentoNivel) -> dict[str, Any]:
+        entradas = list(it.preguntas)
+        n = len(entradas)
+        req = int(entradas[0].get("requeridas", n)) if entradas else 0
+        return final.progreso(entradas, req)
 
     # ------------------------------------------------------------ ayudas
 
@@ -531,6 +602,8 @@ class Juego:
 
     def ayuda(self, intento_id: str, pregunta_id: str) -> dict[str, Any]:
         it = self._intento(intento_id)
+        if it.es_final:
+            raise AccionInvalida("El nivel final es un examen: no hay ayudas.")
         i, e = self._entrada(it, pregunta_id)
         if e["respondida"]:
             raise AccionInvalida("Esa pregunta ya fue respondida.")
@@ -553,6 +626,8 @@ class Juego:
 
     def terminar(self, intento_id: str) -> dict[str, Any]:
         it = self._intento(intento_id)
+        if it.es_final:
+            return self._terminar_final(it)
         entradas = [dict(e) for e in it.preguntas]
         for e in entradas:
             if not e["respondida"]:  # sin responder = timeout
@@ -628,6 +703,72 @@ class Juego:
             "vidas": self.vidas.vidas,
         }
 
+    def _terminar_final(self, it: IntentoNivel) -> dict[str, Any]:
+        """Cierra el examen. Aprobado (aciertos ≥ requeridas, aunque queden preguntas: Q37) →
+        cofre legendario (Q15) + XP de jefe; reprobado → sin recompensa ni progreso. Las
+        preguntas sin responder no cuentan como timeout ni cuestan vidas (no hay mascota)."""
+        prog = self._progreso_final(it)
+        aprobado = prog["resultado"] == "victoria"
+        camino = self.fuente.curso_de_nivel(self.db, self.usuario.id, it.nivel_id)
+        if camino is None:
+            raise NoEncontrado("No encontramos ese nivel.")
+        repetido = it.repetido or it.nivel_id in self._completados(camino.id)
+        ganada, monedas, drop_item, cofre = 0, 0, None, None
+        perfecto = aprobado and prog["aciertos"] == prog["n"]
+        if aprobado:
+            if not repetido:
+                self.progreso, ganada = xp.completar_nivel(
+                    self.progreso, it.tema, self.ahora, perfecto=perfecto, es_jefe=True
+                )
+            else:
+                self.progreso, ganada = xp.registrar_dia_jugado(self.progreso, self.ahora)
+                self.progreso = xp.sumar_xp(self.progreso, it.tema, ganada, self.ahora)
+            self.cofres, drop = rc.drop_nivel(
+                self.cofres, self.rng, repetido=repetido, es_final=True
+            )
+            monedas, drop_item = drop.monedas, drop.item
+            self.fila.monedas += monedas
+            if drop_item:
+                self._dar_item(drop_item)
+            if drop.cofre:
+                fila_cofre = CofrePendiente(
+                    usuario_id=self.usuario.id,
+                    tipo=str(drop.cofre),
+                    curso_id=camino.id,
+                    nivel_id=it.nivel_id,
+                )
+                self.db.add(fila_cofre)
+                self.db.flush()
+                cofre = {"id": fila_cofre.id, "tipo": str(drop.cofre)}
+            if not repetido:
+                self.db.add(
+                    NivelCompletado(
+                        usuario_id=self.usuario.id,
+                        curso_id=camino.id,
+                        nivel_id=it.nivel_id,
+                        perfecto=perfecto,
+                    )
+                )
+                hechos = self._completados(camino.id) | {it.nivel_id}
+                seccion = next(s for s, n in camino.niveles() if n.id == it.nivel_id)
+                if all(n.id in hechos for n in seccion.niveles):
+                    self.vidas = mc.completar_nivel(
+                        self.vidas, self.ahora, sin_timeouts=True, completa_seccion=True
+                    )
+        self.vidas = replace(self.vidas, nivel_sin_ayudas=False)
+        it.estado = "terminado"
+        it.xp_ganada = (it.xp_ganada or 0) + ganada
+        self.guardar()
+        return {
+            "xp_ganada": it.xp_ganada,
+            "monedas": monedas,
+            "drop": _item_vista(drop_item) if drop_item else None,
+            "cofre": cofre,
+            "perfecto": perfecto,
+            "vidas": self.vidas.vidas,
+            "final": {**prog, "aprobado": aprobado},
+        }
+
     def abrir_cofre(self, cofre_id: str) -> dict[str, Any]:
         c = self.db.get(CofrePendiente, cofre_id)
         if c is None or c.usuario_id != self.usuario.id:
@@ -671,6 +812,8 @@ class Juego:
             raise AccionInvalida("Las mascotas se equipan, no se usan.")
         if self.inventario.get(item_id, 0) <= 0:
             raise AccionInvalida("No tienes ese artículo.")
+        if intento_id and self._intento(intento_id).es_final:
+            raise AccionInvalida("En el nivel final no se usan objetos.")  # Q38
         efecto = None
         if item_id == "botiquin":
             self.vidas = mc.usar_botiquin(self.vidas, self.ahora)

@@ -155,15 +155,68 @@ CURSO = [
 ]
 
 
+# Nivel final de cada sección (examen-aventura): se añade al cierre de la sección en el mismo
+# orden que `CURSO`. Juega con estas preguntas propias más las de los demás niveles de la sección.
+FINALES = [
+    ("Nivel final: Lo básico", [
+        _mc("¿Qué cadena coincide completa con `b.t`?",
+            ["bat", "bt", "baat", "b.t literal solamente"], 0,
+            "`.` es exactamente un carácter: «bat» tiene uno entre b y t.", dificultad=2),
+        _vf("`[0-9]` y `\\d` describen (en ASCII) los mismos caracteres.", True,
+            "Ambos son un dígito del 0 al 9.", dificultad=2),
+        _fill("fill_code", "Completa para que coincida con un punto literal: `fin___`",
+              ["\\."], "El punto sin escapar es comodín; `\\.` es un punto literal.", dificultad=3),
+        _num("¿Cuántas coincidencias encuentra `o+` en «foo boo o»?", 3,
+             "Bloques de «o» seguidas: «oo», «oo» y «o». Son tres.", dificultad=3),
+        _mc("¿Qué significa `x*`?",
+            ["Cero o más «x»", "Una o más «x»", "Exactamente una «x»", "Una «x» literal y un asterisco"],
+            0, "`*` permite cero repeticiones; `+` exige al menos una.", dificultad=2),
+        _vf("La regex `[^xyz]` coincide con la letra «y».", False,
+            "`[^xyz]` acepta cualquier carácter salvo x, y o z.", dificultad=3),
+        _mc("¿Qué devuelve `re.findall(r\"a.?\", \"abc\")`?",
+            ["['ab']", "['a']", "['abc']", "['a', 'b', 'c']"], 0,
+            "`a` seguida de cero o un carácter cualquiera; `?` es codicioso y toma la «b».",
+            dificultad=4),
+        _fill("fill_code", "Escribe la clase que acepta una vocal minúscula: `___`",
+              ["[aeiou]"], "Una clase lista los caracteres válidos: `[aeiou]`.",
+              dificultad=4),
+    ]),
+    ("Nivel final: Patrones con estructura", [
+        _mc("¿Con qué coincide `^(sí|no)$`?",
+            ["Solo con «sí» o con «no» completos", "Con cualquier texto que contenga «sí»",
+             "Con «síno»", "Con «sí|no» literal"], 0,
+            "Las anclas obligan a que toda la línea sea una de las alternativas.", dificultad=3),
+        _vf("`(?:ab)+` agrupa sin crear un grupo de captura.", True,
+            "`(?: )` es un grupo que no captura.", dificultad=3),
+        _fill("fill_text", "El símbolo `|` en una regex significa ___ (una alternativa u otra).",
+              ["o", "or"], "`|` es la alternancia: una cosa u otra.", dificultad=2),
+        _num("¿Cuántos grupos de captura tiene `(\\d+)-(\\d+)-(?:\\d+)`?", 2,
+             "Los dos primeros paréntesis capturan; `(?: )` no.", dificultad=4),
+        _orden("Ordena las piezas de la regex de una hora «hh:mm».",
+               ["Ancla de inicio: ^", "Dos dígitos para la hora: \\d{2}", "Dos puntos: :",
+                "Dos dígitos para los minutos: \\d{2}", "Ancla de final: $"],
+               "Queda `^\\d{2}:\\d{2}$`.", dificultad=3),
+        _mc("¿Cuál de estas coincide con `\\bsol\\b`?",
+            ["«el sol sale»", "«girasol»", "«soleado»", "«consola»"], 0,
+            "`\\b` exige límite de palabra a ambos lados: solo «sol» suelto.", dificultad=4),
+        _vf("`$` en `fin$` coincide con el símbolo de dólar literal.", False,
+            "Sin escapar, `$` es el ancla de final de línea; el dólar literal es `\\$`.",
+            dificultad=2),
+    ]),
+]
+
+
 def crear_curso(db: Session, usuario_id: str) -> Curso:
     curso = Curso(usuario_id=usuario_id, titulo=TITULO, tema=TEMA, estado="publicado",
-                  config={"repaso": "leitner", "origen": "ejemplo"})
+                  config={"repaso": "leitner", "origen": "ejemplo", "final_n": 8, "final_g": 70})
     todas: list[dict] = []
-    for i, (titulo_sec, niveles) in enumerate(CURSO):
+    for i, ((titulo_sec, niveles), fin) in enumerate(zip(CURSO, FINALES, strict=True)):
         seccion = Seccion(titulo=titulo_sec, orden=i)
         curso.secciones.append(seccion)
-        for j, (titulo_niv, calentamiento, preguntas) in enumerate(niveles):
-            nivel = Nivel(titulo=titulo_niv, orden=j, es_calentamiento=calentamiento)
+        todos = [(t, c, False, ps) for t, c, ps in niveles] + [(fin[0], False, True, fin[1])]
+        for j, (titulo_niv, calentamiento, es_final, preguntas) in enumerate(todos):
+            nivel = Nivel(titulo=titulo_niv, orden=j, es_calentamiento=calentamiento,
+                          es_final=es_final)
             seccion.niveles.append(nivel)
             for k, datos in enumerate(preguntas):
                 d = barajar(datos)

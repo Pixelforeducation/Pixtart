@@ -342,7 +342,7 @@ def test_normalizar_estructura_valida_documentos():
     ]}
     n = normalizar_estructura(est, 10, ["a.pdf", "b.pdf"])
     s1, s2 = n["secciones"]
-    assert [x["documento"] for x in s1["niveles"]] == ["a.pdf", "a.pdf", "a.pdf"]
-    assert [x.get("documento") for x in s2["niveles"]] == [None, None]
+    assert [x.get("documento") for x in s1["niveles"]] == ["a.pdf"] * 4  # + nivel final
+    assert [x.get("documento") for x in s2["niveles"]] == [None, None, None]
     assert resolver_documento(None, ["solo.pdf"]) == "solo.pdf"
     assert resolver_documento("x", ["a.pdf", "b.pdf"]) is None
