@@ -49,19 +49,35 @@ CATALOGO: tuple[ItemDef, ...] = (
     ItemDef("comida_mascota", "Comida de mascota", R.COMUN),
     ItemDef("escudo_color", "Escudo de color", R.COMUN),
     ItemDef("pocion_resurreccion", "Poción de resurrección", R.RARA),
-    ItemDef("mascota_chispa", "Chispa", R.COMUN, M, "imp-small"),
-    ItemDef("mascota_huesillo", "Huesillo", R.COMUN, M, "skeleton-small"),
-    ItemDef("mascota_zuzu", "Zuzu", R.COMUN, M, "zombie"),
-    ItemDef("mascota_orlo", "Orlo", R.RARA, M, "mage"),
-    ItemDef("mascota_bruma", "Bruma", R.RARA, M, "ghost"),
-    ItemDef("mascota_zorro_brasas", "Zorro de brasas", R.LEGENDARIA, M, "ember-fox"),
-    ItemDef("mascota_buho_cristal", "Búho de cristal", R.LEGENDARIA, M, "crystal-owl"),
-    ItemDef("mascota_onix", "Ónix", R.LEGENDARIA, M, "black-knight"),
+    ItemDef("mascota_seti", "Seti", R.COMUN, M, "mushroom-sprout"),
+    ItemDef("mascota_tictac", "Tictac", R.COMUN, M, "windup-robot"),
+    ItemDef("mascota_borron", "Borrón", R.COMUN, M, "inkwell"),
+    ItemDef("mascota_musgo", "Musgo", R.RARA, M, "mini-golem"),
+    ItemDef("mascota_tomo", "Tomo", R.RARA, M, "book-golem"),
+    ItemDef("mascota_zorro_brasas", "Brasa", R.LEGENDARIA, M, "ember-fox"),
+    ItemDef("mascota_buho_cristal", "Cristal", R.LEGENDARIA, M, "crystal-owl"),
+    ItemDef("mascota_nox", "Nox", R.LEGENDARIA, M, "onyx-dragon"),
 )
 ITEMS: dict[str, ItemDef] = {i.id: i for i in CATALOGO}
 
 #: Mascota común regalada al empezar (Q110-C).
-MASCOTA_INICIAL = "mascota_chispa"
+MASCOTA_INICIAL = "mascota_seti"
+
+#: Mascotas del catálogo anterior → las nuevas (misma rareza). Sirve para leer partidas viejas.
+#: Los monstruos de antes (diablillo, esqueleto, zombi, fantasma, caballero negro) ahora son enemigos.
+MASCOTAS_RENOMBRADAS: dict[str, str] = {
+    "mascota_chispa": "mascota_seti",
+    "mascota_huesillo": "mascota_tictac",
+    "mascota_zuzu": "mascota_borron",
+    "mascota_orlo": "mascota_musgo",
+    "mascota_bruma": "mascota_tomo",
+    "mascota_onix": "mascota_nox",
+}
+
+
+def id_mascota_vigente(item_id: str) -> str:
+    """Id actual de una mascota guardada con el catálogo anterior (o el mismo si no cambió)."""
+    return MASCOTAS_RENOMBRADAS.get(item_id, item_id)
 
 
 def items_de_rareza(rareza: Rareza) -> tuple[ItemDef, ...]:

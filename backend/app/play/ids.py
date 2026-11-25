@@ -1,7 +1,7 @@
 """Ids públicos de ítems (los que usa el frontend) ↔ ids internos de `app.game.recompensas`.
 
 - `comida_mascota` ↔ `comida`, `escudo_color` ↔ `escudo`.
-- Mascotas: `mascota_<especie>` (p. ej. `mascota_chispa` ↔ `mascota_imp-small`).
+- Mascotas: `mascota_<especie>` (p. ej. `mascota_seti` ↔ `mascota_mushroom-sprout`).
 - El resto se queda igual (`botiquin`, `pocion_resurreccion`, `pocion_tiempo`, `lupa`).
 """
 

@@ -162,10 +162,10 @@ def test_estado_inicial_mascota_comun(entorno):
     assert r.status_code == 200
     s = r.json()
     assert s["vidas"] == 10 and s["xp_color"] == 100 and s["monedas"] == 0
-    assert s["mascota"]["id"] == "mascota_imp-small"
+    assert s["mascota"]["id"] == "mascota_mushroom-sprout"
     assert s["mascota"]["rareza"] == "comun" and s["mascota"]["viva"] is True
     assert s["paleta_activa"] in s["paletas_desbloqueadas"]
-    assert s["inventario"] == [{"item_id": "mascota_imp-small", "cantidad": 1}]
+    assert s["inventario"] == [{"item_id": "mascota_mushroom-sprout", "cantidad": 1}]
 
 
 def test_camino(entorno):
@@ -213,7 +213,7 @@ def test_flujo_nivel_aciertos_y_errores(entorno):
         r = _resp(e, it, p["id"], (CORRECTAS if bien else INCORRECTAS)[i]).json()
         assert r["correcta"] is bien
         assert r["xp_ganada"] == (10 if bien else 0)
-        assert "explicacion" in r and r["mascota"]["id"] == "mascota_imp-small"
+        assert "explicacion" in r and r["mascota"]["id"] == "mascota_mushroom-sprout"
         xp += r["xp_ganada"]
     assert r["vidas"] == 5  # 5 errores
     # Responder dos veces la misma pregunta: 409.
@@ -274,7 +274,7 @@ def test_muerte_y_pocion_de_resurreccion(entorno):
     assert r.status_code == 200
     s = r.json()
     assert s["mascota"]["viva"] is True and s["vidas"] == 10
-    assert [i["item_id"] for i in s["inventario"]] == ["mascota_imp-small"]
+    assert [i["item_id"] for i in s["inventario"]] == ["mascota_mushroom-sprout"]
     # Sin poción: 409.
     r = e.client.post("/api/juego/items/usar", json={"item_id": "pocion_resurreccion"},
                       headers=e.h1)
@@ -325,8 +325,8 @@ def test_hambre_reduce_cupo(entorno):
     datos = _iniciar(e, "C1L1")
     assert _ayuda(e, datos["intento_id"], _pregunta_de(datos, 0)).status_code == 409
     # Una rara con hambre da 1 (2 // 2).
-    _modificar(e, mascotas=["mascota_chispa", "mascota_orlo"])
-    s = e.client.post("/api/juego/mascotas/equipar", json={"mascota_id": "mascota_mage"},
+    _modificar(e, mascotas=["mascota_seti", "mascota_musgo"])
+    s = e.client.post("/api/juego/mascotas/equipar", json={"mascota_id": "mascota_mini-golem"},
                       headers=e.h1).json()
     assert s["mascota"]["rareza"] == "rara" and s["mascota"]["ayudas_restantes_nivel"] == 1
     r = _ayuda(e, datos["intento_id"], _pregunta_de(datos, 2))
@@ -334,15 +334,15 @@ def test_hambre_reduce_cupo(entorno):
     lo, hi = r.json()["datos"]["intervalo"]
     assert lo <= 3.14 <= hi
     # Mascota no poseída: 409.
-    r = e.client.post("/api/juego/mascotas/equipar", json={"mascota_id": "mascota_black-knight"},
+    r = e.client.post("/api/juego/mascotas/equipar", json={"mascota_id": "mascota_onyx-dragon"},
                       headers=e.h1)
     assert r.status_code == 409
 
 
 def test_legendaria_pista_ia_con_y_sin_key(entorno, monkeypatch):
     e = entorno
-    _modificar(e, mascotas=["mascota_chispa", "mascota_onix"])
-    e.client.post("/api/juego/mascotas/equipar", json={"mascota_id": "mascota_black-knight"},
+    _modificar(e, mascotas=["mascota_seti", "mascota_nox"])
+    e.client.post("/api/juego/mascotas/equipar", json={"mascota_id": "mascota_onyx-dragon"},
                   headers=e.h1)
     datos = _iniciar(e, "C1L1")
     r = _ayuda(e, datos["intento_id"], _pregunta_de(datos, 3)).json()
@@ -440,7 +440,7 @@ def test_tienda_comprar_con_y_sin_monedas(entorno):
     e = entorno
     lista = e.client.get("/api/juego/tienda", headers=e.h1).json()
     precios = {i["item_id"]: i["precio"] for i in lista}
-    assert precios["escudo"] == 150 and precios["mascota_black-knight"] >= 6000
+    assert precios["escudo"] == 150 and precios["mascota_onyx-dragon"] >= 6000
     assert set(lista[0]) == {"item_id", "nombre", "rareza", "precio"}
     r = e.client.post("/api/juego/tienda/comprar", json={"item_id": "botiquin"}, headers=e.h1)
     assert r.status_code == 409 and "monedas" in r.json()["detail"]
@@ -451,7 +451,7 @@ def test_tienda_comprar_con_y_sin_monedas(entorno):
     r = e.client.post("/api/juego/tienda/comprar", json={"item_id": "nada"}, headers=e.h1)
     assert r.status_code == 404
     _modificar(e, monedas=10_000)
-    r = e.client.post("/api/juego/tienda/comprar", json={"item_id": "mascota_imp-small"},
+    r = e.client.post("/api/juego/tienda/comprar", json={"item_id": "mascota_mushroom-sprout"},
                       headers=e.h1)
     assert r.status_code == 409  # ya la tiene
 
@@ -488,7 +488,7 @@ def test_aislamiento_entre_usuarios(entorno):
     assert _ayuda(e, datos["intento_id"], p, h=e.h2).status_code == 404
     _resp(e, datos["intento_id"], p, INCORRECTAS[_idx(p)])
     s2 = e.client.get("/api/juego/estado", headers=e.h2).json()
-    assert s2["vidas"] == 10 and s2["mascota"]["id"] == "mascota_imp-small"
+    assert s2["vidas"] == 10 and s2["mascota"]["id"] == "mascota_mushroom-sprout"
 
 
 def test_repaso_leitner_mete_vencidas(entorno):
@@ -540,3 +540,20 @@ def test_ayuda_fill_y_ordenar_formato():
         "revelar", {"revelar": "Pa"})
     assert _datos_ayuda({"tipo": "fijar_paso", "posicion": 1, "elemento": 3}) == (
         "fijar_paso", {"fijar_paso": {"posicion": 1, "indice": 3}})
+
+
+def test_partida_con_mascotas_del_catalogo_anterior_se_traduce(entorno):
+    """Partidas guardadas antes del cambio de especies siguen jugables con las mascotas nuevas."""
+    e = entorno
+    e.client.get("/api/juego/estado", headers=e.h1)
+    _modificar(
+        e,
+        mascotas=["mascota_chispa", "mascota_onix", "mascota_seti"],
+        vidas={"mascota": {"id": "mascota_onix", "especie": "black-knight", "rareza": "legendaria"}},
+    )
+    s = e.client.get("/api/juego/estado", headers=e.h1).json()
+    assert s["mascota"]["id"] == "mascota_onyx-dragon"
+    assert s["mascota"]["especie"] == "onyx-dragon"
+    ids_mascotas = [i["item_id"] for i in s["inventario"] if i["item_id"].startswith("mascota_")]
+    assert ids_mascotas == ["mascota_mushroom-sprout", "mascota_onyx-dragon"]
+    assert _fila(e).mascotas == ["mascota_seti", "mascota_nox"]

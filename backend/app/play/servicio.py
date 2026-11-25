@@ -151,7 +151,9 @@ class Juego:
         self.vidas = mc.actualizar(serial.vidas_desde_json(fila.vidas), self.ahora)
         self.cofres = serial.cofres_desde_json(fila.cofres)
         self.inventario: dict[str, int] = dict(fila.inventario or {})
-        self.mascotas: list[str] = list(fila.mascotas or [])
+        self.mascotas: list[str] = list(
+            dict.fromkeys(rc.id_mascota_vigente(m) for m in (fila.mascotas or []))
+        )
         self.guardar()
 
     def guardar(self) -> None:

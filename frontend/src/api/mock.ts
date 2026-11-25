@@ -176,7 +176,7 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
     escudos: 1,
     racha: 3,
     vidas: 10,
-    mascota: { id: 1, especie: "crystal-owl", rareza: "rara", viva: true, revive_en: null, comida: 4, hambrienta: false, ayudas_restantes_nivel: 2 },
+    mascota: { id: 1, especie: "mini-golem", rareza: "rara", viva: true, revive_en: null, comida: 4, hambrienta: false, ayudas_restantes_nivel: 2 },
     inventario: [
       { item_id: "botiquin", cantidad: 1 },
       { item_id: "comida", cantidad: 2 },
@@ -476,7 +476,7 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
     async equiparMascota(mid) {
       const id = String(mid);
       const especie = id.replace(/^mascota_/, "");
-      const rareza: T.Rareza = especie === "ember-fox" ? "legendaria" : especie === "crystal-owl" || especie === "mini-golem" ? "rara" : "comun";
+      const rareza: T.Rareza = ["ember-fox", "crystal-owl", "onyx-dragon"].includes(especie) ? "legendaria" : ["mini-golem", "book-golem"].includes(especie) ? "rara" : "comun";
       if (estado.mascota) {
         const prev = `mascota_${estado.mascota.especie}`;
         const e = estado.inventario.find((i) => i.item_id === prev);

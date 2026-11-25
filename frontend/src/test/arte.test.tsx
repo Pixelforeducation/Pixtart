@@ -43,7 +43,7 @@ describe("contrato de arte", () => {
     for (const it of catalogo.items) expect(existeSprite(spriteItem(it.item_id)), it.item_id).toBe(true);
     for (const id of ["botiquin", "comida", "escudo", "pocion_resurreccion", "pocion_tiempo", "lupa", "mascota_mini-golem"])
       expect(existeSprite(spriteItem(id)), id).toBe(true);
-    for (const e of ["imp-small", "ember-fox", "crystal-owl", "black-knight", "mini-golem"])
+    for (const e of ["mushroom-sprout", "windup-robot", "inkwell", "mini-golem", "book-golem", "ember-fox", "crystal-owl", "onyx-dragon", "imp-small", "black-knight"])
       expect(fichaMascota(e)?.rol).toBe("mascota");
   });
 

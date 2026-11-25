@@ -7,9 +7,9 @@ from app.game import mascota as m
 from app.game.tipos import AccionInvalida, Pregunta, Rareza, TipoPregunta
 
 T0 = datetime(2026, 11, 24, 12, 0, tzinfo=UTC)
-COMUN = m.Mascota("p1", "imp-small", Rareza.COMUN)
-RARA = m.Mascota("p2", "ghost", Rareza.RARA)
-LEGENDARIA = m.Mascota("p3", "black-knight", Rareza.LEGENDARIA)
+COMUN = m.Mascota("p1", "mushroom-sprout", Rareza.COMUN)
+RARA = m.Mascota("p2", "book-golem", Rareza.RARA)
+LEGENDARIA = m.Mascota("p3", "onyx-dragon", Rareza.LEGENDARIA)
 
 
 def estado(mascota=COMUN, vidas=10, comida=5):

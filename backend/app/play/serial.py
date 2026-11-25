@@ -8,7 +8,7 @@ from typing import Any
 
 from app.game.experiencia import EstadoProgreso
 from app.game.mascota import EstadoVidas, Mascota
-from app.game.recompensas import EstadoCofres
+from app.game.recompensas import ITEMS, EstadoCofres, id_mascota_vigente
 from app.game.seleccion import EstadoTarjeta
 from app.game.tipos import Rareza
 
@@ -70,11 +70,20 @@ def vidas_a_json(v: EstadoVidas) -> dict[str, Any]:
     }
 
 
+def _mascota_desde_json(m: dict[str, Any]) -> Mascota:
+    """Traduce mascotas del catálogo anterior (id y especie) a las vigentes."""
+    nuevo = id_mascota_vigente(m["id"])
+    d = ITEMS.get(nuevo)
+    if nuevo != m["id"] and d is not None:
+        return Mascota(d.id, d.especie or "", d.rareza)
+    return Mascota(m["id"], m["especie"], Rareza(m["rareza"]))
+
+
 def vidas_desde_json(d: dict[str, Any]) -> EstadoVidas:
     m = d.get("mascota")
     return EstadoVidas(
         vidas=int(d["vidas"]),
-        mascota=Mascota(m["id"], m["especie"], Rareza(m["rareza"])) if m else None,
+        mascota=_mascota_desde_json(m) if m else None,
         muerta_hasta=_dt(d.get("muerta_hasta")),
         comida=int(d.get("comida", 0)),
         ayudas_usadas_nivel=int(d.get("ayudas_usadas_nivel", 0)),

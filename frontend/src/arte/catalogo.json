@@ -50,49 +50,49 @@
    "especie": null
   },
   {
-   "id": "mascota_chispa",
-   "item_id": "mascota_imp-small",
-   "nombre": "Chispa",
+   "id": "mascota_seti",
+   "item_id": "mascota_mushroom-sprout",
+   "nombre": "Seti",
    "rareza": "comun",
    "clase": "mascota",
-   "especie": "imp-small"
+   "especie": "mushroom-sprout"
   },
   {
-   "id": "mascota_huesillo",
-   "item_id": "mascota_skeleton-small",
-   "nombre": "Huesillo",
+   "id": "mascota_tictac",
+   "item_id": "mascota_windup-robot",
+   "nombre": "Tictac",
    "rareza": "comun",
    "clase": "mascota",
-   "especie": "skeleton-small"
+   "especie": "windup-robot"
   },
   {
-   "id": "mascota_zuzu",
-   "item_id": "mascota_zombie",
-   "nombre": "Zuzu",
+   "id": "mascota_borron",
+   "item_id": "mascota_inkwell",
+   "nombre": "Borrón",
    "rareza": "comun",
    "clase": "mascota",
-   "especie": "zombie"
+   "especie": "inkwell"
   },
   {
-   "id": "mascota_orlo",
-   "item_id": "mascota_mage",
-   "nombre": "Orlo",
+   "id": "mascota_musgo",
+   "item_id": "mascota_mini-golem",
+   "nombre": "Musgo",
    "rareza": "rara",
    "clase": "mascota",
-   "especie": "mage"
+   "especie": "mini-golem"
   },
   {
-   "id": "mascota_bruma",
-   "item_id": "mascota_ghost",
-   "nombre": "Bruma",
+   "id": "mascota_tomo",
+   "item_id": "mascota_book-golem",
+   "nombre": "Tomo",
    "rareza": "rara",
    "clase": "mascota",
-   "especie": "ghost"
+   "especie": "book-golem"
   },
   {
    "id": "mascota_zorro_brasas",
    "item_id": "mascota_ember-fox",
-   "nombre": "Zorro de brasas",
+   "nombre": "Brasa",
    "rareza": "legendaria",
    "clase": "mascota",
    "especie": "ember-fox"
@@ -100,18 +100,18 @@
   {
    "id": "mascota_buho_cristal",
    "item_id": "mascota_crystal-owl",
-   "nombre": "Búho de cristal",
+   "nombre": "Cristal",
    "rareza": "legendaria",
    "clase": "mascota",
    "especie": "crystal-owl"
   },
   {
-   "id": "mascota_onix",
-   "item_id": "mascota_black-knight",
-   "nombre": "Ónix",
+   "id": "mascota_nox",
+   "item_id": "mascota_onyx-dragon",
+   "nombre": "Nox",
    "rareza": "legendaria",
    "clase": "mascota",
-   "especie": "black-knight"
+   "especie": "onyx-dragon"
   }
  ]
 }

@@ -70,12 +70,12 @@ const FICHAS = manifiesto.fichas as unknown as FichaPersonaje[];
 const FALTA = "efecto/falta";
 
 /**
- * Alias → nombre real. Cubre las `especie` que manda hoy la API (backend/app/game/recompensas.py),
- * los `item_id` públicos (app/play/ids.py) y nombres en español cómodos para los otros agentes.
- * Las mascotas del backend se reasignan, con la misma rareza, a los compañeros tiernos del arte nuevo.
+ * Alias → nombre real. La API ya manda las especies nuevas (backend/app/game/recompensas.py); se
+ * conservan alias de las especies anteriores por compatibilidad, más los `item_id` públicos
+ * (app/play/ids.py) y nombres en español cómodos para los otros agentes.
  */
 export const ALIAS: Record<string, string> = {
-  // especies actuales del backend → mascotas tiernas (misma rareza)
+  // especies del catálogo ANTERIOR del backend (partidas viejas en caché) → mascotas tiernas
   "mascota/imp-small": "mascota/mushroom-sprout",
   "mascota/skeleton-small": "mascota/windup-robot",
   "mascota/zombie": "mascota/inkwell",
