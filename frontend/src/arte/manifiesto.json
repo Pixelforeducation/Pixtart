@@ -1,0 +1,1481 @@
+{
+ "$comentario": "GENERADO por frontend/herramientas/generar_sprites.py — no editar a mano.",
+ "sprites": {
+  "anfitrion/alchemist": {
+   "titulo": "Retorta, la alquimista",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/astronomer": {
+   "titulo": "Zenit, el astrónomo",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/bard": {
+   "titulo": "Solfa, el bardo",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/bard-juglar": {
+   "titulo": "Solfa, el bardo (skin juglar)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/bard-tambor": {
+   "titulo": "Solfa, el bardo (skin tambor)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/druid": {
+   "titulo": "Brezo, el druida",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/mage": {
+   "titulo": "Orlo, el mago",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/owl-librarian": {
+   "titulo": "Ulula, búho bibliotecario",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/owl-librarian-escriba": {
+   "titulo": "Ulula, búho bibliotecario (skin escriba)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/owl-librarian-invernal": {
+   "titulo": "Ulula, búho bibliotecario (skin invernal)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "anfitrion/pirate-cartographer": {
+   "titulo": "Marea, la cartógrafa pirata",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "hablar": {
+     "frames": 4,
+     "ms": 150
+    },
+    "feliz": {
+     "frames": 2,
+     "ms": 260
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 300
+    }
+   }
+  },
+  "cofre/legendario": {
+   "titulo": "Cofre legendario",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 700
+    },
+    "abrir": {
+     "frames": 6,
+     "ms": 170,
+     "bucle": false
+    }
+   }
+  },
+  "cofre/normal": {
+   "titulo": "Cofre normal",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 700
+    },
+    "abrir": {
+     "frames": 6,
+     "ms": 170,
+     "bucle": false
+    }
+   }
+  },
+  "efecto/chispa": {
+   "titulo": "Chispa",
+   "lado": 16,
+   "anims": {
+    "idle": {
+     "frames": 4,
+     "ms": 80,
+     "bucle": false
+    }
+   }
+  },
+  "efecto/confeti": {
+   "titulo": "Confeti",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 4,
+     "ms": 140
+    }
+   }
+  },
+  "efecto/corazones": {
+   "titulo": "Corazones",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 3,
+     "ms": 220
+    }
+   }
+  },
+  "efecto/destello": {
+   "titulo": "Destello",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 5,
+     "ms": 70,
+     "bucle": false
+    }
+   }
+  },
+  "efecto/destellos": {
+   "titulo": "Destellos",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 3,
+     "ms": 160
+    }
+   }
+  },
+  "efecto/estrella": {
+   "titulo": "Estrella",
+   "lado": 16,
+   "anims": {
+    "idle": {
+     "frames": 4,
+     "ms": 120
+    }
+   }
+  },
+  "efecto/falta": {
+   "titulo": "Sprite no encontrado",
+   "lado": 32,
+   "anims": {}
+  },
+  "efecto/moneda": {
+   "titulo": "Moneda girando",
+   "lado": 16,
+   "anims": {
+    "idle": {
+     "frames": 6,
+     "ms": 90
+    }
+   }
+  },
+  "efecto/xp": {
+   "titulo": "+XP",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 5,
+     "ms": 110,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/black-knight": {
+   "titulo": "Ónix, el caballero negro",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/demon-big": {
+   "titulo": "Demonio grande",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/ghost": {
+   "titulo": "Fantasma",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/imp-small": {
+   "titulo": "Diablillo",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/ogre-erudito": {
+   "titulo": "Ogro erudito",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/ogre-explorador": {
+   "titulo": "Ogro explorador",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/ogre-green": {
+   "titulo": "Ogro verde",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/ogre-jefe": {
+   "titulo": "Ogro jefe",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/skeleton-big": {
+   "titulo": "Esqueleto grande",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/skeleton-small": {
+   "titulo": "Esqueleto",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "enemigo/zombie": {
+   "titulo": "Zombi",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 220
+    },
+    "muerta": {
+     "frames": 3,
+     "ms": 200,
+     "bucle": false
+    }
+   }
+  },
+  "heroe/tier1": {
+   "titulo": "Héroe — atuendo Brote",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 180
+    }
+   }
+  },
+  "heroe/tier2": {
+   "titulo": "Héroe — atuendo Aprendiz",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 180
+    }
+   }
+  },
+  "heroe/tier3": {
+   "titulo": "Héroe — atuendo Aventurero",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 180
+    }
+   }
+  },
+  "heroe/tier4": {
+   "titulo": "Héroe — atuendo Veterano",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 180
+    }
+   }
+  },
+  "heroe/tier5": {
+   "titulo": "Héroe — atuendo Maestro",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 180
+    }
+   }
+  },
+  "heroe/tier6": {
+   "titulo": "Héroe — atuendo Leyenda",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "ataque": {
+     "frames": 3,
+     "ms": 120
+    },
+    "caminar": {
+     "frames": 2,
+     "ms": 180
+    }
+   }
+  },
+  "icono/ajustes": {
+   "titulo": "Ajustes",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/arena": {
+   "titulo": "Arena",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/ayuda": {
+   "titulo": "Ayuda",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/botiquin": {
+   "titulo": "Botiquín",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/candado": {
+   "titulo": "Bloqueado",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/comida": {
+   "titulo": "Comida de mascota",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/corazon": {
+   "titulo": "Vida",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/corazon-vacio": {
+   "titulo": "Vida perdida",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/escudo": {
+   "titulo": "Escudo de color",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/flecha": {
+   "titulo": "Siguiente",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/gema": {
+   "titulo": "Gema",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/inicio": {
+   "titulo": "Inicio",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/lupa": {
+   "titulo": "Lupa",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/moneda": {
+   "titulo": "Moneda",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/perfil": {
+   "titulo": "Perfil",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/pocion": {
+   "titulo": "Poción de resurrección",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/rayo": {
+   "titulo": "Racha",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/reloj": {
+   "titulo": "Tiempo",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/taller": {
+   "titulo": "Taller",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/tienda": {
+   "titulo": "Tienda",
+   "lado": 16,
+   "anims": {}
+  },
+  "icono/xp": {
+   "titulo": "Experiencia",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/botiquin": {
+   "titulo": "Botiquín",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/comida": {
+   "titulo": "Comida de mascota",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/escudo": {
+   "titulo": "Escudo de color",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/gema": {
+   "titulo": "Gema",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/lupa": {
+   "titulo": "Lupa",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/moneda": {
+   "titulo": "Moneda",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/pocion_resurreccion": {
+   "titulo": "Poción de resurrección",
+   "lado": 16,
+   "anims": {}
+  },
+  "item/pocion_tiempo": {
+   "titulo": "Poción de tiempo",
+   "lado": 16,
+   "anims": {}
+  },
+  "mascota/book-golem": {
+   "titulo": "Mascota Tomo (rara)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  },
+  "mascota/crystal-owl": {
+   "titulo": "Mascota Cristal (legendaria)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  },
+  "mascota/ember-fox": {
+   "titulo": "Mascota Brasa (legendaria)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  },
+  "mascota/inkwell": {
+   "titulo": "Mascota Borrón (comun)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  },
+  "mascota/mini-golem": {
+   "titulo": "Mascota Musgo (rara)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  },
+  "mascota/mushroom-sprout": {
+   "titulo": "Mascota Seti (comun)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  },
+  "mascota/onyx-dragon": {
+   "titulo": "Mascota Nox (legendaria)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  },
+  "mascota/windup-robot": {
+   "titulo": "Mascota Tictac (comun)",
+   "lado": 32,
+   "anims": {
+    "idle": {
+     "frames": 2,
+     "ms": 520
+    },
+    "feliz": {
+     "frames": 3,
+     "ms": 150
+    },
+    "triste": {
+     "frames": 2,
+     "ms": 520
+    },
+    "herido": {
+     "frames": 2,
+     "ms": 120
+    },
+    "muerta": {
+     "frames": 2,
+     "ms": 600
+    },
+    "ayudando": {
+     "frames": 2,
+     "ms": 260
+    }
+   }
+  }
+ },
+ "fichas": [
+  {
+   "id": "heroe/tier1",
+   "nombre": "Brote",
+   "rol": "heroe",
+   "tier": 1
+  },
+  {
+   "id": "heroe/tier2",
+   "nombre": "Aprendiz",
+   "rol": "heroe",
+   "tier": 2
+  },
+  {
+   "id": "heroe/tier3",
+   "nombre": "Aventurero",
+   "rol": "heroe",
+   "tier": 3
+  },
+  {
+   "id": "heroe/tier4",
+   "nombre": "Veterano",
+   "rol": "heroe",
+   "tier": 4
+  },
+  {
+   "id": "heroe/tier5",
+   "nombre": "Maestro",
+   "rol": "heroe",
+   "tier": 5
+  },
+  {
+   "id": "heroe/tier6",
+   "nombre": "Leyenda",
+   "rol": "heroe",
+   "tier": 6
+  },
+  {
+   "id": "mascota/mushroom-sprout",
+   "especie": "mushroom-sprout",
+   "nombre": "Seti",
+   "rol": "mascota",
+   "rareza": "comun",
+   "descripcion": "Hongo tímido y tierno; crece un poquito con cada acierto."
+  },
+  {
+   "id": "mascota/windup-robot",
+   "especie": "windup-robot",
+   "nombre": "Tictac",
+   "rol": "mascota",
+   "rareza": "comun",
+   "descripcion": "Robot de cuerda puntual; cuenta los segundos en voz alta."
+  },
+  {
+   "id": "mascota/inkwell",
+   "especie": "inkwell",
+   "nombre": "Borrón",
+   "rol": "mascota",
+   "rareza": "comun",
+   "descripcion": "Tintero despistado y creativo; salpica cuando se emociona."
+  },
+  {
+   "id": "mascota/mini-golem",
+   "especie": "mini-golem",
+   "nombre": "Musgo",
+   "rol": "mascota",
+   "rareza": "rara",
+   "descripcion": "Gólem de piedra con musgo; firme y paciente."
+  },
+  {
+   "id": "mascota/book-golem",
+   "especie": "book-golem",
+   "nombre": "Tomo",
+   "rol": "mascota",
+   "rareza": "rara",
+   "descripcion": "Gólem de libros, lento y gentil; recuerda todo lo que leíste."
+  },
+  {
+   "id": "mascota/ember-fox",
+   "especie": "ember-fox",
+   "nombre": "Brasa",
+   "rol": "mascota",
+   "rareza": "legendaria",
+   "descripcion": "Zorro de brasas veloz; su cola chisporrotea al acertar."
+  },
+  {
+   "id": "mascota/crystal-owl",
+   "especie": "crystal-owl",
+   "nombre": "Cristal",
+   "rol": "mascota",
+   "rareza": "legendaria",
+   "descripcion": "Búho de cristal que ve las respuestas a través de la niebla."
+  },
+  {
+   "id": "mascota/onyx-dragon",
+   "especie": "onyx-dragon",
+   "nombre": "Nox",
+   "rol": "mascota",
+   "rareza": "legendaria",
+   "descripcion": "Dragoncito nocturno; protege a su dueño con sus alitas."
+  },
+  {
+   "id": "anfitrion/owl-librarian",
+   "nombre": "Ulula, búho bibliotecario",
+   "rol": "anfitrion",
+   "rareza": "rara",
+   "descripcion": "Maestra principal: severa pero justa; pide silencio y luego te sopla la respuesta a medias."
+  },
+  {
+   "id": "anfitrion/owl-librarian-escriba",
+   "nombre": "Ulula escriba",
+   "rol": "anfitrion",
+   "rareza": "rara",
+   "descripcion": "Skin «escriba» de Ulula, búho bibliotecario.",
+   "variante_de": "anfitrion/owl-librarian"
+  },
+  {
+   "id": "anfitrion/owl-librarian-invernal",
+   "nombre": "Ulula invernal",
+   "rol": "anfitrion",
+   "rareza": "rara",
+   "descripcion": "Skin «invernal» de Ulula, búho bibliotecario.",
+   "variante_de": "anfitrion/owl-librarian"
+  },
+  {
+   "id": "anfitrion/mage",
+   "nombre": "Orlo, el mago",
+   "rol": "anfitrion",
+   "rareza": "rara",
+   "descripcion": "Mago distraído que convierte cada pista en un truco de luz."
+  },
+  {
+   "id": "anfitrion/alchemist",
+   "nombre": "Retorta, la alquimista",
+   "rol": "anfitrion",
+   "rareza": "rara",
+   "descripcion": "Impulsiva y curiosa; todo error es «un resultado interesante»."
+  },
+  {
+   "id": "anfitrion/astronomer",
+   "nombre": "Zenit, el astrónomo",
+   "rol": "anfitrion",
+   "rareza": "legendaria",
+   "descripcion": "Soñadora y precisa; mide el tiempo en órbitas."
+  },
+  {
+   "id": "anfitrion/bard",
+   "nombre": "Solfa, el bardo",
+   "rol": "anfitrion",
+   "rareza": "comun",
+   "descripcion": "Alegre y fanfarrón; convierte cada racha en una canción."
+  },
+  {
+   "id": "anfitrion/bard-juglar",
+   "nombre": "Solfa juglar",
+   "rol": "anfitrion",
+   "rareza": "comun",
+   "descripcion": "Skin «juglar» de Solfa, el bardo.",
+   "variante_de": "anfitrion/bard"
+  },
+  {
+   "id": "anfitrion/bard-tambor",
+   "nombre": "Solfa tambor",
+   "rol": "anfitrion",
+   "rareza": "comun",
+   "descripcion": "Skin «tambor» de Solfa, el bardo.",
+   "variante_de": "anfitrion/bard"
+  },
+  {
+   "id": "anfitrion/druid",
+   "nombre": "Brezo, el druida",
+   "rol": "anfitrion",
+   "rareza": "rara",
+   "descripcion": "Sereno y pausado; habla con refranes del bosque."
+  },
+  {
+   "id": "anfitrion/pirate-cartographer",
+   "nombre": "Marea, la cartógrafa pirata",
+   "rol": "anfitrion",
+   "rareza": "rara",
+   "descripcion": "Audaz y ordenada; nunca se pierde y no deja que te pierdas."
+  },
+  {
+   "id": "enemigo/ogre-green",
+   "nombre": "Ogro verde",
+   "rol": "enemigo",
+   "rareza": "comun"
+  },
+  {
+   "id": "enemigo/ogre-erudito",
+   "nombre": "Ogro erudito",
+   "rol": "enemigo",
+   "rareza": "comun",
+   "variante_de": "enemigo/ogre-green"
+  },
+  {
+   "id": "enemigo/ogre-explorador",
+   "nombre": "Ogro explorador",
+   "rol": "enemigo",
+   "rareza": "comun",
+   "variante_de": "enemigo/ogre-green"
+  },
+  {
+   "id": "enemigo/imp-small",
+   "nombre": "Diablillo",
+   "rol": "enemigo",
+   "rareza": "comun"
+  },
+  {
+   "id": "enemigo/skeleton-small",
+   "nombre": "Esqueleto",
+   "rol": "enemigo",
+   "rareza": "comun"
+  },
+  {
+   "id": "enemigo/zombie",
+   "nombre": "Zombi",
+   "rol": "enemigo",
+   "rareza": "comun"
+  },
+  {
+   "id": "enemigo/ghost",
+   "nombre": "Fantasma",
+   "rol": "enemigo",
+   "rareza": "rara"
+  },
+  {
+   "id": "enemigo/skeleton-big",
+   "nombre": "Esqueleto grande",
+   "rol": "enemigo",
+   "rareza": "rara"
+  },
+  {
+   "id": "enemigo/demon-big",
+   "nombre": "Demonio grande",
+   "rol": "enemigo",
+   "rareza": "rara"
+  },
+  {
+   "id": "enemigo/ogre-jefe",
+   "nombre": "Ogro jefe",
+   "rol": "enemigo",
+   "rareza": "rara",
+   "jefe": true,
+   "variante_de": "enemigo/ogre-green"
+  },
+  {
+   "id": "enemigo/black-knight",
+   "nombre": "Ónix, el caballero negro",
+   "rol": "enemigo",
+   "rareza": "legendaria",
+   "jefe": true
+  }
+ ]
+}
