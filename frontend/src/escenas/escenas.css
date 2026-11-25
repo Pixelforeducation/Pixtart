@@ -1,0 +1,118 @@
+/* Escenas: fondos pixel-art por capas. Solo se anima transform y opacity.
+   Las clases .arbol, .nube, .flama… vienen dentro de los SVG (design/herramientas/generar_fondos.py),
+   y las distancias de los keyframes están en unidades del viewBox (320×180). */
+
+.escena { position: relative; --amp: 1; --part: 1; }
+.escena--pantalla { min-height: 100%; }
+.escena-fondo {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+  container-type: size; background: var(--c-fondo);
+}
+.escena--caja { overflow: hidden; isolation: isolate; }
+.escena--caja > .escena-fondo { position: absolute; }
+.escena-contenido { position: relative; z-index: 1; }
+
+/* El lienzo mantiene 16:9 y cubre el contenedor anclado abajo y al centro (igual que la página personal). */
+.escena-lienzo {
+  position: absolute; left: 50%; bottom: 0;
+  width: max(100cqw, 100cqh * 16 / 9); aspect-ratio: 16 / 9;
+  transform: translateX(-50%);
+}
+.capa { position: absolute; inset: -3% -3% -1%; transition: transform 700ms cubic-bezier(.2, .7, .3, 1); }
+.capa > img, .capa-svg, .capa-svg > svg { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+.capa > img { object-fit: cover; object-position: 50% 100%; }
+.capa-particulas { opacity: var(--part); }
+
+/* Tinte de la paleta activa: el mundo toma el color que el jugador ha ganado. */
+.escena-tinte {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, var(--c-cielo) 0%, var(--c-fondo2) 55%, var(--c-pasto) 100%);
+  mix-blend-mode: color; opacity: 0.14;
+}
+:root[data-paleta="pradera"] .escena-tinte { opacity: 0; }
+:root[data-paleta="gris"] .escena-tinte { background: #8a8a8a; mix-blend-mode: saturation; opacity: 0.82; }
+/* Velo para legibilidad: oscurece bordes y la franja inferior donde vive la navegación. */
+.escena-velo {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 40%, transparent 55%, rgb(10 10 25 / 0.45) 100%),
+    linear-gradient(180deg, rgb(10 10 25 / 0.25), transparent 18%, transparent 78%, rgb(10 10 25 / 0.35));
+}
+.escena-biblioteca .escena-velo, .escena-cueva .escena-velo { background: radial-gradient(110% 90% at 50% 45%, transparent 45%, rgb(5 5 15 / 0.6) 100%); }
+
+/* ------------------------------------------------------------------ viento (pradera, bosque, noche) */
+.escena .arbol { animation: esc-mece 3.2s ease-in-out infinite; animation-delay: calc(var(--i) * -0.37s); }
+.escena .mata  { animation: esc-mece 1.6s ease-in-out infinite; animation-delay: calc(var(--i) * -0.13s); }
+@keyframes esc-mece { 0%, 100% { transform: skewX(0); } 50% { transform: skewX(calc(var(--amp) * -6deg)); } }
+.escena .rafaga { animation: esc-sopla 4s linear infinite; animation-delay: calc(var(--i) * -0.6s); }
+@keyframes esc-sopla { 0% { transform: translateX(330px); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateX(-360px); opacity: 0; } }
+.escena .hoja { animation: esc-vuela 6s linear infinite; animation-delay: calc(var(--i) * -0.45s); }
+@keyframes esc-vuela { 0% { transform: translate(330px, -20px) rotate(0); } 100% { transform: translate(-340px, 25px) rotate(720deg); } }
+.escena .nube { animation: esc-deriva 80s linear infinite; animation-delay: calc(var(--i) * -11s); }
+@keyframes esc-deriva { 0% { transform: translateX(60px); opacity: 0; } 6%, 94% { opacity: 1; } 100% { transform: translateX(-360px); opacity: 0; } }
+.escena .halo { animation: esc-late 4s ease-in-out infinite; animation-delay: calc(var(--i) * -0.09s); }
+@keyframes esc-late { 50% { transform: scale(1.14); opacity: 0.6; } }
+.escena .mariposa { animation: esc-revolotea 9s ease-in-out infinite; animation-delay: calc(var(--i) * -3s); }
+@keyframes esc-revolotea {
+  0%, 100% { transform: translate(0, 0) scaleX(1); } 20% { transform: translate(18px, -12px) scaleX(.4); }
+  40% { transform: translate(40px, -4px) scaleX(1); } 60% { transform: translate(28px, -18px) scaleX(.4); } 80% { transform: translate(8px, -6px) scaleX(1); }
+}
+.escena .bandera { animation: esc-ondea 1.4s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -0.3s); }
+@keyframes esc-ondea { to { transform: skewY(calc(var(--amp) * -9deg)) scaleX(0.9); } }
+
+/* ------------------------------------------------------------------ luz y partículas */
+.escena .rayo { opacity: 0.12; animation: esc-rayo 7s ease-in-out infinite; animation-delay: calc(var(--i) * -1.7s); }
+@keyframes esc-rayo { 50% { opacity: 0.32; } }
+.escena .luciernaga { animation: esc-luciernaga 5.5s ease-in-out infinite; animation-delay: calc(var(--i) * -0.73s); opacity: 0; }
+@keyframes esc-luciernaga {
+  0% { transform: translate(0, 0); opacity: 0; } 25% { opacity: 1; }
+  50% { transform: translate(7px, -9px); opacity: .5; } 75% { opacity: 1; } 100% { transform: translate(-4px, -16px); opacity: 0; }
+}
+.escena .hoja-cae { animation: esc-cae 11s linear infinite; animation-delay: calc(var(--i) * -1.1s); }
+@keyframes esc-cae { 0% { transform: translate(0, -12px) rotate(0); } 100% { transform: translate(-50px, 190px) rotate(540deg); } }
+.escena .polvo { animation: esc-polvo 8s ease-in-out infinite; animation-delay: calc(var(--i) * -0.8s); opacity: 0; }
+@keyframes esc-polvo { 0% { transform: translate(0, 0); opacity: 0; } 30%, 70% { opacity: .9; } 100% { transform: translate(10px, -34px); opacity: 0; } }
+.escena .chispa { animation: esc-chispa 5s ease-out infinite; animation-delay: calc(var(--i) * -0.45s); opacity: 0; }
+@keyframes esc-chispa { 0% { transform: translate(0, 0); opacity: 0; } 20% { opacity: 1; } 100% { transform: translate(5px, -64px); opacity: 0; } }
+.escena .destello { animation: esc-destello 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * -0.33s); }
+@keyframes esc-destello { 0%, 100% { transform: scale(0); opacity: 0; } 50% { transform: scale(1.4); opacity: 1; } }
+.escena .estrella { animation: esc-titila 3.1s steps(3) infinite; animation-delay: calc(var(--i) * -0.37s); }
+.escena .estrella:nth-child(3n) { animation-duration: 4.6s; }
+.escena .estrella:nth-child(5n) { animation-duration: 2.2s; }
+@keyframes esc-titila { 50% { opacity: 0.25; } }
+.escena .fugaz { opacity: 0; animation: esc-fugaz 11s ease-in infinite 3s; }
+@keyframes esc-fugaz { 0%, 86% { transform: translate(0, 0); opacity: 0; } 88% { opacity: 1; } 100% { transform: translate(-120px, 60px); opacity: 0; } }
+.escena .aurora { animation: esc-aurora 12s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -4s); }
+@keyframes esc-aurora { 0% { transform: translateX(0); opacity: .55; } 100% { transform: translateX(-16px); opacity: 1; } }
+
+/* ------------------------------------------------------------------ fuego, cristal, interior */
+.escena .flama { animation: esc-flama 0.7s steps(3) infinite; animation-delay: calc(var(--i) * -0.23s); }
+@keyframes esc-flama { 0%, 100% { transform: scale(1, 1); } 33% { transform: scale(0.85, 1.2); opacity: .85; } 66% { transform: scale(1.1, 0.9); } }
+.escena .ventana { animation: esc-ventana 5s steps(2) infinite; animation-delay: calc(var(--i) * -1.3s); }
+@keyframes esc-ventana { 40% { opacity: 1; } 50% { opacity: .45; } 60% { opacity: 1; } }
+.escena .cristal, .escena .brillo { animation: esc-brillo 3s ease-in-out infinite; animation-delay: calc(var(--i) * -0.8s); }
+@keyframes esc-brillo { 50% { opacity: 0.6; } }
+.escena .gota { animation: esc-gota 3.4s ease-in infinite; animation-delay: calc(var(--i) * -0.9s); opacity: 0; }
+@keyframes esc-gota { 0%, 40% { transform: translateY(0); opacity: 0; } 50% { opacity: 1; } 100% { transform: translateY(130px); opacity: 0; } }
+.escena .libro { animation: esc-libro 3.6s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -1.2s); }
+@keyframes esc-libro { to { transform: translateY(-6px) rotate(calc(var(--amp) * 6deg)); } }
+.escena .farol { animation: esc-farol 3.2s ease-in-out infinite alternate; animation-delay: calc(var(--i) * -1s); }
+@keyframes esc-farol { from { transform: rotate(calc(var(--amp) * -5deg)); } to { transform: rotate(calc(var(--amp) * 5deg)); } }
+.escena .murcielago { animation: esc-murcielago 16s linear infinite; animation-delay: calc(var(--i) * -2.7s); }
+@keyframes esc-murcielago {
+  0% { transform: translate(60px, 0) scaleY(1); } 12% { transform: translate(10px, 6px) scaleY(-1); }
+  25% { transform: translate(-40px, -4px) scaleY(1); } 50% { transform: translate(-140px, 8px) scaleY(-1); }
+  75% { transform: translate(-240px, -6px) scaleY(1); } 100% { transform: translate(-360px, 0) scaleY(-1); }
+}
+
+/* ------------------------------------------------------------------ quietud */
+.escena-quieta .escena-fondo *, .escena-quieta .escena-fondo *::before { animation: none !important; transition: none !important; }
+.escena-quieta .luciernaga, .escena-quieta .polvo, .escena-quieta .chispa, .escena-quieta .gota { opacity: 0.7; }
+.escena-quieta .fugaz, .escena-quieta .destello { opacity: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .escena-fondo * { animation: none !important; transition: none !important; }
+}
+
+/* Portada estática (tarjetas de curso) */
+.escena-portada { position: absolute; inset: 0; overflow: hidden; background: var(--c-fondo); }
+.escena-portada > img { position: absolute; left: 50%; bottom: 0; height: 100%; min-width: 100%; aspect-ratio: 16 / 9; transform: translateX(-50%); image-rendering: pixelated; object-fit: cover; }

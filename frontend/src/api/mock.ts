@@ -151,6 +151,8 @@ export interface OpcionesMock {
   estado?: Partial<T.Estado>;
   conKey?: boolean;
   ahora?: () => number;
+  /** Ids de niveles ya completados (para ver el camino con avance). */
+  completados?: string[];
 }
 
 export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
@@ -163,7 +165,7 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
   const cursos = new Map<string, T.Curso>([["1", cursoEjemplo()], ["2", cursoBorrador()]]);
   const creados: Record<string, string> = { "1": "2026-11-20T10:00:00Z", "2": "2026-11-23T10:00:00Z" };
   const trabajos = new Map<string, { pasos: number; cursoId?: string }>();
-  const completados = new Set<string>();
+  const completados = new Set<string>(op.completados ?? []);
   const estado: T.Estado = {
     xp_total_por_tema: { biologia: 640, matematicas: 120 },
     tier_por_tema: { biologia: 2, matematicas: 1 },

@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import type { ApiKey, Limites } from "../api";
 import { useApi, useSesion } from "../contexto";
 import { mensajeError } from "../lib/validacion";
+import { AjusteAnimaciones } from "../escenas/AjusteAnimaciones";
 
 const fmt = (n: number) => n.toLocaleString("es-MX");
 
@@ -138,6 +139,8 @@ export function Ajustes() {
           </>
         ) : <p>Cargando…</p>}
       </section>
+
+      <AjusteAnimaciones />
 
       <section className="panel oscuro">
         <h2 style={{ marginTop: 0 }}>Cuenta</h2>

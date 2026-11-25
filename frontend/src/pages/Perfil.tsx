@@ -2,15 +2,39 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorApi, type Estado } from "../api";
 import { useApi, useEstadoJuego } from "../contexto";
-import { Candado, Escudo, Moneda } from "../components/Iconos";
-import { ItemIcono, nombreItem } from "../components/ItemIcono";
+import { Candado, Escudo } from "../components/Iconos";
+import { nombreItem } from "../components/ItemIcono";
 import { Mascota } from "../components/Mascota";
-import { NOMBRES_TIER, Sprite, srcTier } from "../components/Sprite";
+import { NOMBRES_TIER } from "../components/Sprite";
+import { Escena } from "../escenas";
+import { Contador, Llama } from "../escenas/hud";
+import { sonar } from "../escenas/sonido";
+import { HeroeVisual, IconoUI, ItemVisual, MascotaVisual } from "../escenas/visuales";
 import { PALETAS, aplicarPaleta } from "../theme/paleta";
 import { mensajeError } from "../lib/validacion";
 
 const USABLES = new Set(["botiquin", "pocion_resurreccion", "comida", "escudo"]);
 const nombreTier = (t: number) => NOMBRES_TIER[Math.max(0, Math.min(5, t - 1))];
+const rarezaDe = (id: string) => (id.startsWith("mascota_") || id === "pocion_resurreccion" ? "rara" : "comun");
+
+/** Escalera de evolución: los 6 atuendos; los futuros, como silueta con candado. */
+function Evolucion({ tier }: { tier: number }) {
+  return (
+    <ol className="evolucion" aria-label={`Evolución: tier ${tier} de 6`}>
+      {NOMBRES_TIER.map((nombre, i) => {
+        const t = i + 1;
+        const estado = t < tier ? "pasado" : t === tier ? "actual" : "futuro";
+        return (
+          <li key={nombre} className={`evo ${estado}`} aria-current={t === tier ? "step" : undefined}>
+            <span className="evo-retrato"><HeroeVisual tier={t} alt="" /></span>
+            <span className="evo-nombre">{t > tier ? "???" : nombre}</span>
+            {t > tier && <span className="evo-candado" aria-hidden="true"><Candado tam={14} /></span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 export function Perfil() {
   const api = useApi();
@@ -18,15 +42,17 @@ export function Perfil() {
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
-  if (!estado) return <p>Cargando perfil…</p>;
+  if (!estado) return <Escena bioma="perfil"><p className="placa">Cargando perfil…</p></Escena>;
 
   const accion = async (f: () => Promise<Estado>, ok: string) => {
     setError(null); setAviso(null);
+    sonar("toque");
     try { poner(await f()); setAviso(ok); } catch (e) { setError(mensajeError(e)); }
   };
 
   const elegirPaleta = async (id: string) => {
     setError(null);
+    sonar("toque");
     try {
       poner(await api.elegirPaleta(id));
     } catch (e) {
@@ -40,36 +66,58 @@ export function Perfil() {
 
   const temas = Object.keys({ ...estado.xp_total_por_tema, ...estado.tier_por_tema });
   const tierMax = Math.max(1, ...Object.values(estado.tier_por_tema));
+  const xpMax = Math.max(1, ...Object.values(estado.xp_total_por_tema));
+  const sigPaleta = [...PALETAS].sort((a, b) => a.xp_color_min - b.xp_color_min).find((p) => p.xp_color_min > estado.xp_color);
+  const m = estado.mascota;
 
   return (
-    <>
-      <h1>Perfil</h1>
-      <section className="panel centro" aria-label="Personaje">
-        <Sprite src="/sprites/ogre-green.svg" alt={`Tu personaje con el atuendo ${nombreTier(tierMax)}`} className="personaje-grande" />
-        <div className="fila" style={{ justifyContent: "center" }}>
-          <Sprite src={srcTier(tierMax)} alt="" tam={48} />
-          <p className="pix-font" style={{ fontSize: 11, margin: 0 }}>Atuendo: {nombreTier(tierMax)} (tier {tierMax})</p>
+    <Escena bioma="perfil">
+      <h1 className="sr-only">Perfil</h1>
+      <section className="escenario-heroe aparece" aria-label="Personaje">
+        <span className="foco" aria-hidden="true" />
+        <div className="grupo">
+          <HeroeVisual tier={tierMax} alt={`Tu personaje con el atuendo ${nombreTier(tierMax)}`} className="personaje-grande" />
+          {m && <MascotaVisual especie={m.especie} alt="" className={`mascota-lado ${m.viva ? "" : "muerta"}`} />}
         </div>
-        <div className="fila" style={{ justifyContent: "center", gap: 16 }}>
-          <span className="chip"><Moneda /> {estado.monedas}</span>
-          <span className="chip" title="Escudos de color"><Escudo /> {estado.escudos}/2</span>
-          <span className="chip">Racha {estado.racha} días</span>
+      </section>
+      <p className="nombre-tier"><span className="cinta">{nombreTier(tierMax)} · tier {tierMax}</span></p>
+
+      <section className="panel" aria-label="Estadísticas">
+        <div className="stats">
+          <div className="stat"><IconoUI id="moneda" tam={28} /><div><Contador valor={estado.monedas} className="valor" /><span className="nombre">monedas</span></div></div>
+          <div className="stat"><Llama racha={estado.racha} tam={24} /><div><span className="valor">{estado.racha}</span><span className="nombre">días de racha</span></div></div>
+          <div className="stat"><IconoUI id="corazon" tam={28} /><div><span className="valor">{estado.vidas}</span><span className="nombre">vidas</span></div></div>
+          <div className="stat" title="Los escudos protegen tu XP de color si un día no juegas"><Escudo tam={28} /><div><span className="valor">{estado.escudos}/2</span><span className="nombre">escudos</span></div></div>
         </div>
       </section>
 
       <section className="panel oscuro" aria-labelledby="h-temas">
-        <h2 id="h-temas" style={{ marginTop: 0 }}>Evolución por tema</h2>
+        <h2 id="h-temas" style={{ marginTop: 0 }}>Evolución</h2>
+        <Evolucion tier={tierMax} />
         {temas.length === 0 ? <p>Juega un curso para empezar a evolucionar.</p> : (
-          <ul>{temas.map((t) => (
-            <li key={t}><strong>{t}</strong>: tier {estado.tier_por_tema[t] ?? 1} ({nombreTier(estado.tier_por_tema[t] ?? 1)}) · {estado.xp_total_por_tema[t] ?? 0} XP</li>
-          ))}</ul>
+          <div style={{ marginTop: 16 }}>
+            {temas.map((t) => {
+              const xp = estado.xp_total_por_tema[t] ?? 0;
+              const ti = estado.tier_por_tema[t] ?? 1;
+              return (
+                <div key={t} className="tema-xp">
+                  <div className="cab"><strong>{t}</strong><span>{nombreTier(ti)} · {xp} XP</span></div>
+                  <div className="barra oro llenar" aria-hidden="true"><span style={{ width: `${Math.max(4, (xp / xpMax) * 100)}%` }} /></div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </section>
 
       <section className="panel" aria-labelledby="h-paletas">
         <h2 id="h-paletas" style={{ marginTop: 0 }}>Paleta de color</h2>
-        <p>XP de color: <strong>{estado.xp_color}</strong> / 3000. Baja 50 por cada día sin jugar (los escudos lo evitan).</p>
-        <div className="barra" aria-hidden="true"><span style={{ width: `${(estado.xp_color / 3000) * 100}%` }} /></div>
+        <p>
+          XP de color: <strong>{estado.xp_color}</strong>
+          {sigPaleta ? <> · te faltan <strong>{sigPaleta.xp_color_min - estado.xp_color}</strong> para «{sigPaleta.nombre}»</> : " · ¡todas desbloqueadas!"}.
+          {" "}Baja 50 por cada día sin jugar (los escudos lo evitan).
+        </p>
+        <div className="barra llenar" aria-hidden="true"><span style={{ width: `${Math.min(100, (estado.xp_color / 3000) * 100)}%` }} /></div>
         <div className="paletas" style={{ marginTop: 12 }}>
           {PALETAS.map((p) => {
             const libre = estado.paletas_desbloqueadas.includes(p.id);
@@ -83,7 +131,7 @@ export function Perfil() {
                 </span>
                 {p.nombre}
                 <span style={{ display: "block", fontSize: 14 }}>
-                  {libre ? (activa ? "Activa" : "Desbloqueada") : <><Candado tam={14} /> Requiere {p.xp_color_min} XP de color</>}
+                  {libre ? (activa ? "Activa" : "Desbloqueada") : <><Candado tam={14} /> {p.xp_color_min} XP</>}
                 </span>
               </button>
             );
@@ -104,22 +152,23 @@ export function Perfil() {
         {error && <p className="error" role="alert">{error}</p>}
         {aviso && <p className="exito" role="status">{aviso}</p>}
         {estado.inventario.length === 0 ? <p style={{ marginTop: 12 }}>Tu inventario está vacío.</p> : (
-          <div className="rejilla" style={{ marginTop: 12 }}>
+          <div className="rejilla inventario" style={{ marginTop: 12 }}>
             {estado.inventario.map((it) => (
-              <div key={it.item_id} className="slot">
-                <ItemIcono id={it.item_id} />
-                <span>{nombreItem(it.item_id)} ×{it.cantidad}</span>
+              <div key={it.item_id} className={`slot ${rarezaDe(it.item_id)}`}>
+                <span className="cantidad">×{it.cantidad}</span>
+                <ItemVisual id={it.item_id} />
+                <span>{nombreItem(it.item_id)}</span>
                 {USABLES.has(it.item_id) && (
                   <button className="boton chico" onClick={() => accion(() => api.usarItem(it.item_id), `Usaste: ${nombreItem(it.item_id)}.`)}>Usar</button>
                 )}
                 {it.item_id.startsWith("mascota_") && (
-                  <button className="boton chico" onClick={() => accion(() => api.equiparMascota(it.item_id), "Mascota equipada.")}>Equipar</button>
+                  <button className="boton chico verde" onClick={() => accion(() => api.equiparMascota(it.item_id), "Mascota equipada.")}>Equipar</button>
                 )}
               </div>
             ))}
           </div>
         )}
       </section>
-    </>
+    </Escena>
   );
 }

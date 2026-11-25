@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="320" height="180" preserveAspectRatio="xMidYMax slice" shape-rendering="crispEdges">
+<title>Tienda · destellos (.destello)</title>
+<g class="destello" style="transform-origin:217px 26px;--i:0">
+<rect x="217" y="25" width="1" height="3" fill="#FFE27A"/>
+<rect x="216" y="26" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:224px 89px;--i:1">
+<rect x="224" y="88" width="1" height="3" fill="#FFF1A0"/>
+<rect x="223" y="89" width="3" height="1" fill="#FFF1A0"/>
+</g>
+<g class="destello" style="transform-origin:218px 110px;--i:2">
+<rect x="218" y="109" width="1" height="3" fill="#FFE27A"/>
+<rect x="217" y="110" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:281px 120px;--i:3">
+<rect x="281" y="119" width="1" height="3" fill="#FFE27A"/>
+<rect x="280" y="120" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:39px 34px;--i:4">
+<rect x="39" y="33" width="1" height="3" fill="#FFF1A0"/>
+<rect x="38" y="34" width="3" height="1" fill="#FFF1A0"/>
+</g>
+<g class="destello" style="transform-origin:222px 57px;--i:5">
+<rect x="222" y="56" width="1" height="3" fill="#FFF1A0"/>
+<rect x="221" y="57" width="3" height="1" fill="#FFF1A0"/>
+</g>
+<g class="destello" style="transform-origin:46px 34px;--i:6">
+<rect x="46" y="33" width="1" height="3" fill="#FFFFFF"/>
+<rect x="45" y="34" width="3" height="1" fill="#FFFFFF"/>
+</g>
+<g class="destello" style="transform-origin:138px 113px;--i:7">
+<rect x="138" y="112" width="1" height="3" fill="#FFF1A0"/>
+<rect x="137" y="113" width="3" height="1" fill="#FFF1A0"/>
+</g>
+<g class="destello" style="transform-origin:283px 37px;--i:8">
+<rect x="283" y="36" width="1" height="3" fill="#FFE27A"/>
+<rect x="282" y="37" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:276px 81px;--i:9">
+<rect x="276" y="80" width="1" height="3" fill="#FFFFFF"/>
+<rect x="275" y="81" width="3" height="1" fill="#FFFFFF"/>
+</g>
+<g class="destello" style="transform-origin:11px 149px;--i:10">
+<rect x="11" y="148" width="1" height="3" fill="#FFE27A"/>
+<rect x="10" y="149" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:41px 29px;--i:11">
+<rect x="41" y="28" width="1" height="3" fill="#FFE27A"/>
+<rect x="40" y="29" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:219px 23px;--i:12">
+<rect x="219" y="22" width="1" height="3" fill="#FFE27A"/>
+<rect x="218" y="23" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:257px 77px;--i:13">
+<rect x="257" y="76" width="1" height="3" fill="#FFE27A"/>
+<rect x="256" y="77" width="3" height="1" fill="#FFE27A"/>
+</g>
+<g class="destello" style="transform-origin:76px 54px;--i:14">
+<rect x="76" y="53" width="1" height="3" fill="#FFFFFF"/>
+<rect x="75" y="54" width="3" height="1" fill="#FFFFFF"/>
+</g>
+<g class="destello" style="transform-origin:314px 93px;--i:15">
+<rect x="314" y="92" width="1" height="3" fill="#FFFFFF"/>
+<rect x="313" y="93" width="3" height="1" fill="#FFFFFF"/>
+</g>
+</svg>

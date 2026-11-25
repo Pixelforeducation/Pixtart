@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="320" height="180" preserveAspectRatio="xMidYMax slice" shape-rendering="crispEdges">
+<title>Biblioteca · piso y alfombra</title>
+<rect x="0" y="160" width="320" height="20" fill="#5C3A1A"/>
+<rect x="0" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="16" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="32" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="48" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="64" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="80" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="96" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="112" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="128" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="144" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="160" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="176" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="192" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="208" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="224" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="240" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="256" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="272" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="288" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="304" y="160" width="1" height="20" fill="#4A2E14"/>
+<rect x="0" y="160" width="320" height="2" fill="#8B5A2B"/>
+<rect x="90" y="166" width="140" height="10" fill="#8E1F1F"/>
+<rect x="92" y="168" width="136" height="6" fill="#B83A3A"/>
+<rect x="94" y="170" width="132" height="1" fill="#F2C230"/>
+</svg>
