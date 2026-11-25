@@ -11,9 +11,8 @@ import { sonar } from "../escenas/sonido";
 import { CofreVisual, HeroeVisual, IconoUI, ItemVisual, MascotaVisual } from "../escenas/visuales";
 import { mensajeError } from "../lib/validacion";
 
-/** El backend v0.2 añade `tipo: "final"` (castillo del jefe) al cerrar cada sección. */
-type TipoVisual = NodoCamino["tipo"] | "final";
-const tipoDe = (n: NodoCamino) => n.tipo as TipoVisual;
+type TipoVisual = NodoCamino["tipo"];
+const tipoDe = (n: NodoCamino): TipoVisual => n.tipo;
 
 const ESTADO_TXT = { bloqueado: "bloqueado", disponible: "disponible", actual: "siguiente", completado: "completado" } as const;
 const TIPO_TXT: Record<TipoVisual, string> = { calentamiento: "Calentamiento", leccion: "Lección", cofre: "Cofre", final: "Nivel final" };

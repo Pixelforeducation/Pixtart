@@ -3,7 +3,10 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { ProveedorApi, ProveedorEstado } from "./contexto";
+import { instalarPuenteSonido } from "./efectos/puente";
 import "./styles.css";
+
+instalarPuenteSonido();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

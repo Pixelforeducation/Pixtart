@@ -1,16 +1,9 @@
 /**
- * Mapa central de sprites del nivel final.
- *
- * PROVISIONAL: el agente `arte` está creando los sprites definitivos con los nombres del contrato
- * `src/arte` (`heroe/tierN`, `enemigo/<id>` → `/sprites/<grupo>/<id>.svg`). Mientras tanto se cargan
- * copias de `cristoredentor.github.io/assets/` en `public/nivel-final/provisional/`. Para cambiar al
- * arte definitivo basta con apuntar `RUTA` a `spriteUrl()` de `src/arte` (cada ficha ya lleva su
- * nombre de contrato en `contrato`).
+ * Mapa central de sprites del nivel final. Usa el arte definitivo del contrato `src/arte`
+ * (`heroe/tierN`, `enemigo/<id>`, `cofre/legendario`); los fondos y tiles siguen en `public/nivel-final/`.
  */
 import type { TipoEncuentro } from "./logica";
-
-const RUTA = "/nivel-final/provisional/";
-const url = (archivo: string) => `${RUTA}${archivo}.svg`;
+import { animDisponible, framesDe, spriteUrl } from "../arte";
 
 export interface FichaMonstruo {
   id: string;
@@ -22,26 +15,27 @@ export interface FichaMonstruo {
   mira: "izquierda" | "derecha" | "frente";
 }
 
+const HEROE_CONTRATO = "heroe/tier1";
 export const HEROE = {
-  contrato: "heroe/tier1",
-  idle: url("player-idle"),
-  caminar: [url("player-walk-f1"), url("player-walk-f2")],
-  ataque: url("player-attack"),
+  contrato: HEROE_CONTRATO,
+  idle: spriteUrl(HEROE_CONTRATO, "idle"),
+  caminar: framesDe(HEROE_CONTRATO, "caminar").urls,
+  ataque: spriteUrl(HEROE_CONTRATO, "ataque"),
 };
 
-/** Monstruos con frames idle/hurt separados (los demás son un solo sprite). */
-const CON_HERIDO = new Set(["ogre-green", "imp-small", "skeleton-small", "zombie"]);
-
-const m = (id: string, nombre: string, extra: Partial<FichaMonstruo> = {}): FichaMonstruo => ({
-  id,
-  nombre,
-  contrato: `enemigo/${id}`,
-  idle: url(CON_HERIDO.has(id) ? `${id}-idle` : id),
-  herido: CON_HERIDO.has(id) ? url(`${id}-hurt`) : undefined,
-  escala: 1,
-  mira: "frente",
-  ...extra,
-});
+const m = (id: string, nombre: string, extra: Partial<FichaMonstruo> = {}): FichaMonstruo => {
+  const contrato = `enemigo/${id}`;
+  return {
+    id,
+    nombre,
+    contrato,
+    idle: spriteUrl(contrato, "idle"),
+    herido: animDisponible(contrato, "herido") === "herido" ? spriteUrl(contrato, "herido") : undefined,
+    escala: 1,
+    mira: "frente",
+    ...extra,
+  };
+};
 
 export const COMUNES: FichaMonstruo[] = [
   m("ogre-green", "Ogro verde"),
@@ -52,8 +46,8 @@ export const COMUNES: FichaMonstruo[] = [
 
 export const RAROS: FichaMonstruo[] = [
   m("ghost", "Fantasma"),
-  m("ogre-green--skin-explorador", "Ogro explorador"),
-  m("ogre-green--skin-erudito", "Ogro erudito"),
+  m("ogre-explorador", "Ogro explorador"),
+  m("ogre-erudito", "Ogro erudito"),
 ];
 
 export const JEFES: FichaMonstruo[] = [
@@ -63,7 +57,7 @@ export const JEFES: FichaMonstruo[] = [
 
 export const JEFE_LEGENDARIO: FichaMonstruo = m("black-knight", "Caballero negro", { escala: 2 });
 
-export const COFRE_LEGENDARIO = url("chest-legendary");
+export const COFRE_LEGENDARIO = spriteUrl("cofre/legendario", "idle");
 
 /** Monstruo de cada encuentro. El jefe legendario va en la última sección del curso. */
 export function monstruoPara(tipo: TipoEncuentro, indice: number, seccion: number, ultimaSeccion: boolean): FichaMonstruo {

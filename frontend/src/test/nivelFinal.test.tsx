@@ -69,7 +69,7 @@ describe("NivelFinal (demo, sin canvas)", () => {
     expect(screen.getByLabelText("Racha de 3 aciertos")).toBeInTheDocument();
     await u.click(screen.getByRole("button", { name: "Continuar" }));
     await responderMC(u, /Falso/);
-    await responderMC(u, /^A\s*color$/);
+    await responderMC(u, /^color$/);
     await u.type(await screen.findByLabelText("Tu respuesta"), "{{3}");
     await u.click(screen.getByRole("button", { name: "Responder" }));
     await u.click(await screen.findByRole("button", { name: "Continuar" }));

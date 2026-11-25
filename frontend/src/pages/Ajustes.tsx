@@ -3,6 +3,7 @@ import type { ApiKey, Limites } from "../api";
 import { useApi, useSesion } from "../contexto";
 import { mensajeError } from "../lib/validacion";
 import { AjusteAnimaciones } from "../escenas/AjusteAnimaciones";
+import { AjusteSonido } from "../components/AjusteSonido";
 
 const fmt = (n: number) => n.toLocaleString("es-MX");
 
@@ -140,6 +141,7 @@ export function Ajustes() {
         ) : <p>Cargando…</p>}
       </section>
 
+      <AjusteSonido />
       <AjusteAnimaciones />
 
       <section className="panel oscuro">

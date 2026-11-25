@@ -147,7 +147,8 @@ export interface Curso {
 
 // ---- Juego ----
 export type EstadoNodo = "bloqueado" | "disponible" | "actual" | "completado";
-export type TipoNodo = "calentamiento" | "leccion" | "cofre";
+/** `final`: castillo del jefe (backend v0.2, `Nivel.es_final`). */
+export type TipoNodo = "calentamiento" | "leccion" | "cofre" | "final";
 export interface NodoCamino {
   id: number | string;
   titulo: string;
