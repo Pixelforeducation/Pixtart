@@ -1,0 +1,7 @@
+Copia de solo lectura del arte original del autor (Cristopher), que usa generar_sprites.py.
+No se edita a mano: si cambia el original, se vuelve a copiar.
+
+final/    <- cristoredentor.github.io/assets/nivel-final/sprites (jugador y monstruos idle/hurt)
+elenco/   <- cristoredentor.github.io/assets/personajes/juego (personajes 32x32)
+mascotas/ <- cristoredentor.github.io/assets/mascotas (ember-fox, crystal-owl, mini-golem)
+ui/       <- cristoredentor.github.io/assets/ui (chest-normal-hoja, chest-legendary-hoja)

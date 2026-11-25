@@ -1,0 +1,117 @@
+{
+ "$comentario": "Espejo de backend/app/game/recompensas.py CATALOGO (GENERADO; src/test/arte.test.tsx comprueba que cada ítem tenga sprite).",
+ "items": [
+  {
+   "id": "botiquin",
+   "item_id": "botiquin",
+   "nombre": "Botiquín",
+   "rareza": "comun",
+   "clase": "consumible",
+   "especie": null
+  },
+  {
+   "id": "pocion_tiempo",
+   "item_id": "pocion_tiempo",
+   "nombre": "Poción de tiempo",
+   "rareza": "comun",
+   "clase": "consumible",
+   "especie": null
+  },
+  {
+   "id": "lupa",
+   "item_id": "lupa",
+   "nombre": "Lupa",
+   "rareza": "comun",
+   "clase": "consumible",
+   "especie": null
+  },
+  {
+   "id": "comida_mascota",
+   "item_id": "comida",
+   "nombre": "Comida de mascota",
+   "rareza": "comun",
+   "clase": "consumible",
+   "especie": null
+  },
+  {
+   "id": "escudo_color",
+   "item_id": "escudo",
+   "nombre": "Escudo de color",
+   "rareza": "comun",
+   "clase": "consumible",
+   "especie": null
+  },
+  {
+   "id": "pocion_resurreccion",
+   "item_id": "pocion_resurreccion",
+   "nombre": "Poción de resurrección",
+   "rareza": "rara",
+   "clase": "consumible",
+   "especie": null
+  },
+  {
+   "id": "mascota_chispa",
+   "item_id": "mascota_imp-small",
+   "nombre": "Chispa",
+   "rareza": "comun",
+   "clase": "mascota",
+   "especie": "imp-small"
+  },
+  {
+   "id": "mascota_huesillo",
+   "item_id": "mascota_skeleton-small",
+   "nombre": "Huesillo",
+   "rareza": "comun",
+   "clase": "mascota",
+   "especie": "skeleton-small"
+  },
+  {
+   "id": "mascota_zuzu",
+   "item_id": "mascota_zombie",
+   "nombre": "Zuzu",
+   "rareza": "comun",
+   "clase": "mascota",
+   "especie": "zombie"
+  },
+  {
+   "id": "mascota_orlo",
+   "item_id": "mascota_mage",
+   "nombre": "Orlo",
+   "rareza": "rara",
+   "clase": "mascota",
+   "especie": "mage"
+  },
+  {
+   "id": "mascota_bruma",
+   "item_id": "mascota_ghost",
+   "nombre": "Bruma",
+   "rareza": "rara",
+   "clase": "mascota",
+   "especie": "ghost"
+  },
+  {
+   "id": "mascota_zorro_brasas",
+   "item_id": "mascota_ember-fox",
+   "nombre": "Zorro de brasas",
+   "rareza": "legendaria",
+   "clase": "mascota",
+   "especie": "ember-fox"
+  },
+  {
+   "id": "mascota_buho_cristal",
+   "item_id": "mascota_crystal-owl",
+   "nombre": "Búho de cristal",
+   "rareza": "legendaria",
+   "clase": "mascota",
+   "especie": "crystal-owl"
+  },
+  {
+   "id": "mascota_onix",
+   "item_id": "mascota_black-knight",
+   "nombre": "Ónix",
+   "rareza": "legendaria",
+   "clase": "mascota",
+   "especie": "black-knight"
+  }
+ ]
+}
