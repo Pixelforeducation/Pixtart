@@ -51,6 +51,7 @@ def _curso_json(c: Curso) -> dict:
                         "titulo": n.titulo,
                         "orden": n.orden,
                         "es_calentamiento": n.es_calentamiento,
+                        "es_final": n.es_final,
                         "preguntas": [_pregunta_json(p) for p in n.preguntas],
                     }
                     for n in s.niveles

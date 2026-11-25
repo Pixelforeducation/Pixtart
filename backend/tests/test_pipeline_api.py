@@ -33,6 +33,9 @@ def test_flujo_completo(client, entorno, db):  # noqa: F811
     for s in curso["secciones"]:
         assert s["niveles"][0]["es_calentamiento"] is True
         assert not any(n["es_calentamiento"] for n in s["niveles"][1:])
+        # cada sección cierra con su nivel final (castillo), sin preguntas propias
+        assert [n["es_final"] for n in s["niveles"]] == [False] * (len(s["niveles"]) - 1) + [True]
+        assert s["niveles"][-1]["preguntas"] == []
     pregs = _preguntas(curso)
     assert len(pregs) == CONFIG["num_preguntas"]
     assert all(p["valida"] and p["problemas"] == [] for p in pregs)

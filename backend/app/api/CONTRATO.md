@@ -50,8 +50,14 @@ tiempos_por_tipo?: {tipo: segundos}, repaso: "fsrs"|"leitner", final_n?: 3-40 (1
 `TipoPregunta` ∈ `multiple_choice, true_false, fill_text, fill_code, numeric, ordering, open, math_problem, proof`
 
 `Curso` = `{id, titulo, tema, estado, secciones: [{id, titulo, orden, niveles: [{id, titulo, orden,
-es_calentamiento, preguntas: [Pregunta]}]}]}`. Cada sección termina con un nivel final (`Nivel.es_final`, columna
-`niveles.es_final BOOLEAN NOT NULL DEFAULT false`) que el pipeline añade sin generarle preguntas.
+es_calentamiento, es_final, preguntas: [Pregunta]}]}]}`. Cada sección termina con un nivel final
+(`Nivel.es_final`) que el pipeline añade sin generarle preguntas (`preguntas: []`; las toma de la sección al jugar).
+
+Migración (aún sin Alembic; `create_all` la crea en bases nuevas). En una base existente:
+
+```sql
+ALTER TABLE niveles ADD COLUMN es_final BOOLEAN NOT NULL DEFAULT false;
+```
 
 `Pregunta` = `{id, tipo, enunciado, opciones?: [str], respuesta: <según tipo>, tolerancia?: number,
 explicacion, pista?: str, dificultad: 1-5, tiempo_s, fuente_pagina?: int, fuente_documento?: str, valida: bool,
