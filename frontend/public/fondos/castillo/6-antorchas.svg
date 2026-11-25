@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 180" width="320" height="180" preserveAspectRatio="xMidYMax slice" shape-rendering="crispEdges">
+<title>Castillo · primer plano y antorchas (.flama)</title>
+<rect x="0" y="168" width="128" height="12" fill="#0E0C1A"/>
+<rect x="128" y="167" width="15" height="13" fill="#0E0C1A"/>
+<rect x="143" y="166" width="23" height="14" fill="#0E0C1A"/>
+<rect x="166" y="167" width="19" height="13" fill="#0E0C1A"/>
+<rect x="185" y="166" width="11" height="14" fill="#0E0C1A"/>
+<rect x="196" y="165" width="9" height="15" fill="#0E0C1A"/>
+<rect x="205" y="164" width="11" height="16" fill="#0E0C1A"/>
+<rect x="216" y="165" width="9" height="15" fill="#0E0C1A"/>
+<rect x="225" y="166" width="11" height="14" fill="#0E0C1A"/>
+<rect x="236" y="167" width="19" height="13" fill="#0E0C1A"/>
+<rect x="255" y="168" width="65" height="12" fill="#0E0C1A"/>
+<rect x="29" y="150" width="3" height="20" fill="#3A2612"/>
+<rect x="27" y="148" width="7" height="3" fill="#5C3A1A"/>
+<g class="flama" style="transform-origin:30px 147px;--i:0">
+<rect x="27" y="141" width="7" height="7" fill="#FFB347" opacity="0.25"/>
+<rect x="29" y="143" width="3" height="4" fill="#F27A1D"/>
+<rect x="30" y="141" width="1" height="2" fill="#F2C230"/>
+<rect x="30" y="144" width="1" height="2" fill="#FFF1A0"/>
+</g>
+<rect x="289" y="150" width="3" height="20" fill="#3A2612"/>
+<rect x="287" y="148" width="7" height="3" fill="#5C3A1A"/>
+<g class="flama" style="transform-origin:290px 147px;--i:1">
+<rect x="287" y="141" width="7" height="7" fill="#FFB347" opacity="0.25"/>
+<rect x="289" y="143" width="3" height="4" fill="#F27A1D"/>
+<rect x="290" y="141" width="1" height="2" fill="#F2C230"/>
+<rect x="290" y="144" width="1" height="2" fill="#FFF1A0"/>
+</g>
+</svg>
