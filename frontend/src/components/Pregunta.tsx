@@ -27,25 +27,27 @@ interface Props {
   resultado?: ResultadoRespuesta | null;
   onResponder: (r: RespuestaPregunta) => void;
   enviando?: boolean;
+  /** false cuando el enunciado lo muestra otro (p. ej. el globo del anfitrión en la escena). */
+  mostrarEnunciado?: boolean;
 }
 
-export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onResponder, enviando = false }: Props) {
+export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onResponder, enviando = false, mostrarEnunciado = true }: Props) {
   const ay = useMemo(() => resumirAyudas(ayudas), [ayudas]);
   const bloqueada = !!resultado || enviando;
-  const titulo = useRef<HTMLHeadingElement>(null);
-  useEffect(() => titulo.current?.focus(), [pregunta.id]);
+  const titulo = useRef<HTMLParagraphElement>(null);
+  useEffect(() => { if (mostrarEnunciado) titulo.current?.focus(); }, [pregunta.id, mostrarEnunciado]);
 
   return (
-    <section aria-labelledby={`enun-${pregunta.id}`}>
+    <section aria-labelledby={`enun-${pregunta.id}`} className="jg-pregunta">
       <h2 className="sr-only">Pregunta</h2>
-      <p id={`enun-${pregunta.id}`} className="enunciado" ref={titulo} tabIndex={-1}>{pregunta.enunciado}</p>
-      {ay.pista && <p className="aviso" role="status">Pista de tu mascota: {ay.pista}</p>}
+      {mostrarEnunciado && <p id={`enun-${pregunta.id}`} className="enunciado" ref={titulo} tabIndex={-1}>{pregunta.enunciado}</p>}
+      {ay.pista && <p className="aviso jg-pista" role="status">Pista de tu mascota: {ay.pista}</p>}
       {pregunta.tipo === "multiple_choice" && (
         <Opciones opciones={pregunta.opciones ?? []} eliminadas={ay.eliminadas} bloqueada={bloqueada}
           correcta={resultado ? (resultado.respuesta_correcta as number) : null} onResponder={(i) => onResponder(i)} />
       )}
       {pregunta.tipo === "true_false" && (
-        <Opciones opciones={["Verdadero", "Falso"]} eliminadas={ay.eliminadas} bloqueada={bloqueada}
+        <Opciones opciones={["Verdadero", "Falso"]} eliminadas={ay.eliminadas} bloqueada={bloqueada} vf
           correcta={resultado ? (resultado.respuesta_correcta ? 0 : 1) : null} onResponder={(i) => onResponder(i === 0)} />
       )}
       {(pregunta.tipo === "fill_text" || pregunta.tipo === "fill_code") && (
@@ -62,30 +64,71 @@ export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onRespo
   );
 }
 
-function Opciones({ opciones, eliminadas, bloqueada, correcta, onResponder }: {
-  opciones: string[]; eliminadas: Set<number>; bloqueada: boolean; correcta: number | null; onResponder: (i: number) => void;
+/** ¿La tecla viene de un campo de texto? (entonces no es un atajo). */
+export function esEscritura(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
+}
+
+function Opciones({ opciones, eliminadas, bloqueada, correcta, onResponder, vf = false }: {
+  opciones: string[]; eliminadas: Set<number>; bloqueada: boolean; correcta: number | null; onResponder: (i: number) => void; vf?: boolean;
 }) {
   const [sel, setSel] = useState<number | null>(null);
+  const responderBtn = useRef<HTMLButtonElement>(null);
+  const vistas = useRef<Set<number>>(new Set(eliminadas));
+  // Las opciones recién descartadas por la ayuda se desvanecen con humo (solo la primera vez).
+  const [nuevas, setNuevas] = useState<number[]>([]);
+  useEffect(() => {
+    const n = [...eliminadas].filter((i) => !vistas.current.has(i));
+    eliminadas.forEach((i) => vistas.current.add(i));
+    if (!n.length) { setNuevas([]); return; }
+    setNuevas(n);
+    const id = setTimeout(() => setNuevas([]), 1200);
+    return () => clearTimeout(id);
+  }, [eliminadas]);
+  useEffect(() => { if (sel !== null && eliminadas.has(sel)) setSel(null); }, [eliminadas, sel]);
+
+  // Atajos: 1–9 eligen la opción y llevan el foco a «Responder» (Enter confirma).
+  useEffect(() => {
+    if (bloqueada) return;
+    const tecla = (e: globalThis.KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || esEscritura(e.target)) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1 || n > opciones.length || eliminadas.has(n - 1)) return;
+      e.preventDefault();
+      setSel(n - 1);
+      setTimeout(() => responderBtn.current?.focus(), 0);
+    };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, [bloqueada, opciones.length, eliminadas]);
+
+  const conResultado = correcta !== null;
   return (
     <>
-      <ul className="opciones" role="list">
+      <ul className={`opciones jg-losetas ${vf ? "jg-vf" : ""} ${conResultado ? "jg-resuelta" : ""}`} role="list">
         {opciones.map((o, i) => {
           const elim = eliminadas.has(i);
-          const clase = correcta === null ? "" : i === correcta ? "correcta" : i === sel ? "incorrecta" : "";
+          const clase = correcta === null ? "" : i === correcta ? "correcta" : i === sel ? "incorrecta" : "jg-apagada";
           return (
-            <li key={i}>
-              <button type="button" className={`opcion ${elim ? "eliminada" : ""} ${clase}`} aria-pressed={sel === i}
-                disabled={elim || bloqueada} onClick={() => setSel(i)}
+            <li key={i} style={{ ["--i" as string]: i }}>
+              <button type="button" className={`jg-loseta ${elim ? "eliminada" : ""} ${nuevas.includes(i) ? "jg-humo" : ""} ${clase}`} aria-pressed={sel === i}
+                disabled={elim || bloqueada} onClick={() => setSel(i)} aria-keyshortcuts={String(i + 1)}
                 aria-label={elim ? `${o} (descartada por la ayuda)` : undefined}>
-                <span className="pix-font" style={{ fontSize: 10, marginRight: 8 }}>{String.fromCharCode(65 + i)}</span>{o}
+                <span className="jg-tecla" aria-hidden="true">{i + 1}</span>
+                <span className="jg-loseta-txt">{o}</span>
+                {clase === "correcta" && <span className="jg-marca jg-marca-bien" aria-hidden="true">✓</span>}
+                {clase === "incorrecta" && <span className="jg-marca jg-marca-mal" aria-hidden="true">✗</span>}
+                {nuevas.includes(i) && <span className="jg-nube" aria-hidden="true"><i /><i /><i /><i /></span>}
               </button>
             </li>
           );
         })}
       </ul>
       {!bloqueada && (
-        <p style={{ marginTop: 16 }}>
-          <button type="button" className="boton" disabled={sel === null} onClick={() => sel !== null && onResponder(sel)}>Responder</button>
+        <p className="jg-acciones">
+          <button ref={responderBtn} type="button" className="boton jg-responder" disabled={sel === null} onClick={() => sel !== null && onResponder(sel)}>Responder</button>
+          <span className="jg-pista-teclas" aria-hidden="true">Teclas 1–{opciones.length} y Enter</span>
         </p>
       )}
     </>
@@ -100,7 +143,7 @@ function Completar({ codigo, revelar, bloqueada, onResponder }: { codigo: boolea
       <input id="resp-completar" type="text" value={v} onChange={(e) => setV(e.target.value)} disabled={bloqueada}
         autoComplete="off" spellCheck={!codigo} style={codigo ? { fontFamily: "ui-monospace, monospace" } : undefined} />
       {revelar && <p className="ayuda-campo" role="status">Ayuda: empieza por «{revelar}»</p>}
-      {!bloqueada && <p style={{ marginTop: 12 }}><button className="boton" disabled={!v.trim()}>Responder</button></p>}
+      {!bloqueada && <p className="jg-acciones"><button className="boton jg-responder" disabled={!v.trim()}>Responder</button></p>}
     </form>
   );
 }
@@ -114,7 +157,7 @@ function Numerica({ intervalo, bloqueada, onResponder }: { intervalo: [number, n
       <label htmlFor="resp-num">Tu respuesta (número)</label>
       <input id="resp-num" type="text" inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} disabled={bloqueada} autoComplete="off" />
       {intervalo && <p className="ayuda-campo" role="status">Ayuda: está entre {intervalo[0]} y {intervalo[1]}</p>}
-      {!bloqueada && <p style={{ marginTop: 12 }}><button className="boton" disabled={!okNum}>Responder</button></p>}
+      {!bloqueada && <p className="jg-acciones"><button className="boton jg-responder" disabled={!okNum}>Responder</button></p>}
     </form>
   );
 }
@@ -184,7 +227,7 @@ export function Ordenar({ opciones, fijos, bloqueada, semilla, onResponder }: {
         ))}
       </ol>
       <p className="sr-only" aria-live="polite">{anuncio}</p>
-      {!bloqueada && <p style={{ marginTop: 16 }}><button type="button" className="boton" onClick={() => onResponder(orden)}>Responder</button></p>}
+      {!bloqueada && <p className="jg-acciones"><button type="button" className="boton jg-responder" onClick={() => onResponder(orden)}>Responder</button></p>}
     </>
   );
 }

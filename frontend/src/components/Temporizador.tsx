@@ -13,20 +13,28 @@ interface Props {
   onAgotado: () => void;
   /** Cambia para reiniciar el reloj (p. ej. el id de la pregunta). */
   clave?: unknown;
+  /** Se llama una vez por segundo entero en los últimos `nervioso` segundos (para el tic-tac). */
+  onSegundo?: (restante: number) => void;
+  /** Segundos finales en que el reloj "se pone nervioso" (tiembla y hace tic). */
+  nervioso?: number;
 }
 
-/** Cuenta regresiva por pregunta. Llama `onAgotado` una sola vez al llegar a 0. */
-export function Temporizador({ segundos, activo = true, onAgotado, clave }: Props) {
+/** Cuenta regresiva por pregunta con reloj de arena y barra. Llama `onAgotado` una sola vez al llegar a 0. */
+export function Temporizador({ segundos, activo = true, onAgotado, clave, onSegundo, nervioso = 5 }: Props) {
   const [restante, setRestante] = useState(segundos);
   const restanteRef = useRef(segundos);
   const agotado = useRef(false);
   const cb = useRef(onAgotado);
   cb.current = onAgotado;
+  const cbSeg = useRef(onSegundo);
+  cbSeg.current = onSegundo;
+  const ultimoSeg = useRef<number | null>(null);
 
   useEffect(() => {
     restanteRef.current = segundos;
     setRestante(segundos);
     agotado.current = false;
+    ultimoSeg.current = null;
   }, [segundos, clave]);
 
   useEffect(() => {
@@ -48,10 +56,23 @@ export function Temporizador({ segundos, activo = true, onAgotado, clave }: Prop
     }
   }, [activo, restante]);
 
+  const entero = Math.ceil(restante);
+  useEffect(() => {
+    if (!activo || entero <= 0 || entero > nervioso || ultimoSeg.current === entero) return;
+    ultimoSeg.current = entero;
+    cbSeg.current?.(entero);
+  }, [activo, entero, nervioso]);
+
   const urgente = restante <= 10;
+  const tiembla = activo && restante > 0 && restante <= nervioso;
+  const frac = segundos > 0 ? Math.max(0, Math.min(1, restante / segundos)) : 0;
+  const tono = frac > 0.5 && !urgente ? "verde" : frac > 0.25 && !urgente ? "ambar" : "rojo";
   return (
-    <div className={`temporizador hud-texto ${urgente ? "urgente" : ""}`} role="timer" aria-label={`Tiempo restante ${formatoTiempo(restante)}`}>
-      <span aria-hidden="true">⏱ {formatoTiempo(restante)}</span>
+    <div className={`temporizador jg-reloj jg-reloj-${tono} ${urgente ? "urgente" : ""} ${tiembla ? "nervioso" : ""}`} role="timer"
+      aria-label={`Tiempo restante ${formatoTiempo(restante)}`}>
+      <span className="jg-arena" aria-hidden="true" />
+      <span className="jg-reloj-barra" aria-hidden="true"><span style={{ width: `${frac * 100}%` }} /></span>
+      <span className="jg-reloj-txt" aria-hidden="true">{formatoTiempo(restante)}</span>
       {urgente && restante > 0 && <span className="sr-only" aria-live="assertive">Quedan menos de 10 segundos</span>}
     </div>
   );

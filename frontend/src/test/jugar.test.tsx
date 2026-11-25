@@ -23,9 +23,9 @@ describe("Jugar (con mock)", () => {
     renderCon(<Jugar />, { ruta: "/jugar/100?curso=1", patron: "/jugar/:nivelId" });
     const u = userEvent.setup();
     expect(await screen.findByText("¿Qué pigmento capta la luz en las plantas?")).toBeInTheDocument();
-    await u.click(await screen.findByRole("button", { name: "Ayuda (2)" }));
+    await u.click(await screen.findByRole("button", { name: /Ayuda de .* \(2 restantes\)/ }));
     expect(await screen.findByRole("button", { name: /Hemoglobina \(descartada/ })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Ayuda (1)" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Ayuda de .* \(1 restantes\)/ })).toBeInTheDocument();
     await u.click(screen.getByRole("button", { name: /Clorofila/ }));
     await u.click(screen.getByRole("button", { name: "Responder" }));
     expect(await screen.findByText("¡Correcto!")).toBeInTheDocument();
@@ -33,8 +33,10 @@ describe("Jugar (con mock)", () => {
     await u.click(await screen.findByRole("button", { name: /Falso/ }));
     await u.click(screen.getByRole("button", { name: "Responder" }));
     expect(await screen.findByText("Incorrecto")).toBeInTheDocument();
-    expect(screen.getByText(/Respuesta correcta:/)).toHaveTextContent("Verdadero");
-    await u.click(screen.getByRole("button", { name: "Terminar nivel" }));
+    expect(screen.getByText(/La respuesta correcta es:/)).toHaveTextContent("Verdadero");
+    // Tras el error se enseña la explicación y se continúa con «Entendido».
+    expect(screen.getByText("¿Por qué?")).toBeInTheDocument();
+    await u.click(screen.getByRole("button", { name: "Entendido · Terminar nivel" }));
     await waitFor(() => expect(screen.getByText(/Nivel completado/)).toBeInTheDocument());
     expect(screen.getByText(/\+\d+ XP/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Siguiente nivel/ })).toBeInTheDocument();
