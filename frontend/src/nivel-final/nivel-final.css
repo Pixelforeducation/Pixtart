@@ -1,0 +1,153 @@
+/* Nivel final (agente nivel-final). Estética de cristoredentor.github.io: pizarra azul-gris + oro. */
+.nf {
+  --nf-noche: #1E2529; --nf-pizarra: #2D373C; --nf-acero: #3D4A51; --nf-piedra: #566972;
+  --nf-niebla: #BDC8CD; --nf-oro: #D9A93A; --nf-oro-claro: #F2D27A; --nf-oro-sombra: #A87A1E;
+  position: relative;
+  display: flex; flex-direction: column; gap: 10px;
+  margin: -8px -4px 0;
+}
+/* Modo inmersivo: mientras se juega el nivel final se ocultan cabecera y barra de navegación. */
+.app:has(.nf) .cabecera, .app:has(.nf) .navbar { display: none; }
+.app:has(.nf) .principal { padding-bottom: 24px; padding-top: 12px; }
+@media (min-width: 900px) { .app:has(.nf) { padding-left: 0; } }
+
+.nf-etq { font-family: var(--fuente-pixel); font-size: 9px; letter-spacing: 0.04em; color: var(--nf-niebla); text-transform: uppercase; }
+.nf-num, .nf-cargando, .nf-avanza { font-family: var(--fuente-pixel); font-size: 11px; }
+.nf-cargando { color: var(--nf-niebla); margin: 0; }
+
+/* ---- HUD ---- */
+.nf-hud {
+  display: grid; grid-template-columns: auto auto 1fr auto auto; align-items: center; gap: 8px;
+  background: var(--nf-pizarra); border: 3px solid var(--nf-noche);
+  box-shadow: inset 0 0 0 2px var(--nf-acero); padding: 6px 8px;
+}
+.nf-contador { display: flex; flex-direction: column; align-items: center; font-family: var(--fuente-pixel); font-size: 12px; line-height: 1.2; }
+.nf-corazones { grid-column: 4; display: flex; justify-content: flex-end; min-width: 0; }
+.nf-corazones .corazones svg { width: 16px; height: 16px; }
+.nf-sonido { grid-column: 5; }
+.nf-salir, .nf-sonido { min-height: 44px; min-width: 44px; }
+.nf-salir { font-size: 12px; }
+.nf-racha {
+  grid-column: 3; justify-self: center; white-space: nowrap;
+  font-family: var(--fuente-pixel); font-size: 10px; color: var(--texto-osc);
+  background: var(--nf-oro-claro); border: 3px solid var(--nf-noche); padding: 4px 6px;
+  animation: nf-pop 260ms steps(4);
+}
+.nf-racha.crit { background: #FF8A8A; animation: nf-pop 260ms steps(4), nf-latido 700ms steps(2) infinite 260ms; }
+
+.nf-meta { display: flex; flex-direction: column; gap: 4px; }
+.nf-meta-txt { display: flex; justify-content: space-between; gap: 8px; font-family: var(--fuente-pixel); font-size: 9px; color: var(--nf-niebla); }
+.nf-meta-txt span:first-child { color: var(--texto); }
+.nf-meta-barra { display: flex; gap: 2px; height: 14px; padding: 2px; background: var(--nf-noche); border: 2px solid var(--nf-acero); }
+.nf-meta-barra span { flex: 1; background: var(--nf-acero); transition: background-color 200ms steps(2); }
+.nf-meta-barra span.lleno { background: var(--nf-oro); box-shadow: inset 0 2px 0 var(--nf-oro-claro), inset 0 -2px 0 var(--nf-oro-sombra); animation: nf-pop 300ms steps(3); }
+
+/* ---- Escenario ---- */
+.nf-escenario {
+  position: relative; overflow: hidden;
+  background: #151B1F; border: 4px solid var(--nf-noche);
+  box-shadow: inset 0 0 0 2px var(--nf-acero), 0 4px 0 var(--nf-noche);
+  min-height: 150px;
+}
+.nf-lienzo { width: 100%; display: flex; justify-content: center; line-height: 0; }
+.nf-lienzo canvas { image-rendering: pixelated; display: block; }
+.nf-furia .nf-escenario { border-color: #8E1F1F; animation: nf-alerta 1.2s steps(2) infinite; }
+.nf-capa {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 8px; background: rgba(15, 18, 22, 0.55); z-index: 2;
+}
+.nf-tarjeta { max-width: 460px; width: 100%; margin: 0; max-height: 100%; overflow: auto; }
+.nf-tarjeta h2 { margin-top: 0; color: var(--nf-oro-claro); }
+.nf-reglas { padding-left: 18px; margin: 0 0 14px; font-size: 16px; }
+.nf-reglas li { margin-bottom: 4px; }
+
+.nf-bajo { animation: nf-sube 220ms steps(4); }
+.nf-bajo .nf-tarjeta { max-width: none; border-color: var(--nf-noche); }
+.nf-bajo .boton.grande { width: 100%; min-height: 56px; }
+
+.nf-estatica { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; min-height: 200px; padding: 12px; background: linear-gradient(#2D373C 0 70%, #3E8E41 70% 74%, #5C3A1A 74%); }
+.nf-hp { font-size: 18px; color: var(--error); letter-spacing: 2px; }
+
+/* ---- Desafío ---- */
+.nf-desafio {
+  margin: 0; background: var(--nf-pizarra); border-color: var(--nf-noche);
+  box-shadow: inset 0 0 0 2px var(--nf-piedra);
+  animation: nf-sube 220ms steps(4);
+}
+.nf-desafio-cab { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.nf-desafio-cab .temporizador { font-family: var(--fuente-pixel); font-size: 12px; }
+.nf-desafio .enunciado { font-size: 20px; line-height: 1.45; }
+.nf-desafio .opcion { min-height: 56px; font-size: 18px; }
+.nf-furia .nf-desafio { box-shadow: inset 0 0 0 2px #E04848; }
+.nf-feedback { animation: nf-sube 200ms steps(4); }
+.nf-feedback .boton { width: 100%; min-height: 52px; margin-top: 4px; }
+.nf-veredicto { font-family: var(--fuente-pixel); font-size: 12px; }
+.nf-feedback.exito { background: var(--acierto); color: var(--texto-osc); }
+.nf-feedback.error { background: var(--vida3); color: var(--texto); border-color: var(--nf-noche); }
+.nf-feedback.error strong { color: var(--c-moneda3); }
+.nf-desafio.resuelto .feedback.exito { animation: nf-sube 200ms steps(4), nf-brillo 600ms steps(3); }
+.nf-desafio.resuelto .feedback.error { animation: nf-sube 200ms steps(4), nf-temblor 300ms steps(6); }
+.nf-bonus { text-align: center; margin: 0; }
+
+/* ---- Fin y cofre legendario ---- */
+.nf-fin { position: relative; overflow: hidden; text-align: center; background: var(--nf-pizarra); border-color: var(--nf-noche); box-shadow: inset 0 0 0 2px var(--nf-piedra); }
+.nf-fin.gana { box-shadow: inset 0 0 0 2px var(--nf-oro), 0 0 0 2px var(--nf-oro-sombra); }
+.nf-fin h2 { font-size: 16px; color: var(--nf-oro-claro); margin-top: 4px; }
+.nf-fin.gana h2 { animation: nf-pop 400ms steps(4); }
+.nf-fin .fila { justify-content: center; }
+.nf-premios { list-style: none; padding: 0; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.nf-premios li { font-family: var(--fuente-pixel); font-size: 11px; background: var(--nf-noche); border: 2px solid var(--nf-oro); padding: 6px 8px; animation: nf-pop 300ms steps(3) both; }
+.nf-premios li:nth-child(2) { animation-delay: 120ms; }
+.nf-premios li:nth-child(3) { animation-delay: 240ms; }
+.nf-cofre { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 12px 0 16px; }
+.nf-cofre-sprite { position: relative; width: 128px; height: 128px; }
+.nf-cofre-sprite img { position: relative; z-index: 1; animation: nf-flota 1.4s steps(2) infinite; }
+.nf-rayos {
+  position: absolute; inset: -40px; z-index: 0; opacity: 0.55;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 226, 122, 0.55) 0 12deg, transparent 12deg 30deg);
+  -webkit-mask: radial-gradient(circle, #000 35%, transparent 70%); mask: radial-gradient(circle, #000 35%, transparent 70%);
+  animation: nf-gira 8s linear infinite;
+}
+.nf-cofre.abriendo img { animation: nf-sacude 120ms steps(2) infinite; }
+.nf-cofre.abriendo .nf-rayos { opacity: 1; animation-duration: 1.5s; }
+.nf-cofre.abierto img { animation: nf-pop 400ms steps(4); filter: brightness(1.2) drop-shadow(0 0 8px #FFE27A); }
+.nf-botin ul { list-style: none; padding: 0; margin: 4px 0 0; display: grid; gap: 6px; }
+.nf-botin li { background: var(--nf-noche); border: 3px solid var(--r-comun); padding: 8px 12px; font-size: 18px; animation: nf-pop 350ms steps(4) both; }
+.nf-botin li.rareza-legendaria { border-color: var(--r-leg); color: var(--r-leg2); }
+.nf-botin li.rareza-rara { border-color: var(--r-rara); color: var(--r-rara2); }
+.nf-botin li:nth-child(2) { animation-delay: 150ms; }
+
+.nf-confeti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+.nf-fin > :not(.nf-confeti) { position: relative; z-index: 1; }
+.nf-confeti span {
+  position: absolute; top: -12px; left: calc(var(--i) * 4.2%); width: 6px; height: 10px;
+  background: hsl(calc(var(--i) * 47deg) 85% 62%);
+  animation: nf-cae calc(1.6s + (var(--i) * 0.07s)) steps(16) calc(var(--i) * -0.13s) 3 both;
+}
+
+/* ---- Diálogo salir / error ---- */
+.nf-dialogo { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 12, 16, 0.75); }
+.nf-dialogo .panel { max-width: 420px; margin: 0; }
+.nf-dialogo h2 { margin-top: 0; }
+.nf-error { max-width: 520px; margin: 32px auto; }
+
+@keyframes nf-pop { 0% { transform: scale(1.5); } 60% { transform: scale(0.92); } 100% { transform: scale(1); } }
+@keyframes nf-latido { 50% { transform: scale(1.1); } }
+@keyframes nf-sube { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes nf-brillo { 50% { filter: brightness(1.35); } }
+@keyframes nf-temblor { 0%, 100% { transform: none; } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes nf-alerta { 50% { box-shadow: inset 0 0 0 2px #E04848, 0 4px 0 var(--nf-noche); } }
+@keyframes nf-flota { 50% { transform: translateY(-4px); } }
+@keyframes nf-sacude { 0% { transform: rotate(-4deg) translateX(-2px); } 100% { transform: rotate(4deg) translateX(2px); } }
+@keyframes nf-gira { to { transform: rotate(360deg); } }
+@keyframes nf-cae { from { transform: translateY(0) rotate(0); } to { transform: translateY(520px) rotate(540deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .nf *, .nf *::before, .nf *::after { animation: none !important; transition: none !important; }
+}
+
+/* Reglas del intro en chips (caben sin scroll en 390×844) */
+.nf-chips { list-style: none; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 6px; }
+.nf-chips li { background: var(--nf-noche); border: 2px solid var(--nf-oro); padding: 4px 8px; font-size: 16px; }
+.nf-chips strong { color: var(--nf-oro-claro); }
+.nf-bajo .nf-reglas { margin: 12px 0 0; font-size: 15px; color: var(--nf-niebla); }
