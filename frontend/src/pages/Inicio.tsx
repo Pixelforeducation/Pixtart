@@ -7,6 +7,7 @@ import { nombreItem } from "../components/ItemIcono";
 import { biomaDeCurso, Escena, Portada, useIntensidad } from "../escenas";
 import { AnilloMeta, Castillo, Estrella, Llama } from "../escenas/hud";
 import { avanceDeHoy, META_DIARIA } from "../escenas/metaDiaria";
+import { musica, useMusica } from "../escenas/musica";
 import { sonar } from "../escenas/sonido";
 import { CofreVisual, HeroeVisual, IconoUI, ItemVisual, MascotaVisual } from "../escenas/visuales";
 import { mensajeError } from "../lib/validacion";
@@ -246,6 +247,30 @@ function DialogoCofre({ cofre, onCerrar }: { cofre: CofreAbierto; onCerrar: () =
   );
 }
 
+/** Nota musical pixelada; tachada cuando la música está apagada. */
+function IconoNota({ tachada, tam = 20 }: { tachada: boolean; tam?: number }) {
+  return (
+    <svg width={tam} height={tam} viewBox="0 0 10 10" aria-hidden="true" focusable="false" shapeRendering="crispEdges" style={{ display: "block" }}>
+      <path fill="currentColor" d="M5 1h1v6H5z M6 1h3v1H6z M8 2h1v2H8z M2 6h4v3H2z" />
+      {tachada && <path d="M1 1 L9 9" stroke="currentColor" strokeWidth={1.4} />}
+    </svg>
+  );
+}
+
+/** Interruptor de música a mano en Inicio; comparte estado con Ajustes (useMusica). */
+export function BotonMusica() {
+  const m = useMusica();
+  return (
+    <button type="button" className="boton chico boton-musica" aria-pressed={m.activa}
+      title={m.activa ? "Quitar la música" : "Poner la música"}
+      onClick={() => m.setActiva(!m.activa)}
+      style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+      <IconoNota tachada={!m.activa} />
+      <span>Música</span>
+    </button>
+  );
+}
+
 /** Racha + meta diaria: la razón para volver mañana, siempre arriba del mapa. */
 function PanelDia({ racha, hoy }: { racha: number; hoy: number }) {
   const lista = hoy >= META_DIARIA;
@@ -316,6 +341,9 @@ export function Inicio() {
   const tier = cursoElegido ? estado?.tier_por_tema[cursoElegido.tema] ?? 1 : 1;
   const especie = estado?.mascota?.viva ? estado.mascota.especie : null;
   const bioma = biomaDeCurso(cursoElegido);
+  // La música del mapa sigue al mundo del curso elegido (cuando ya se sabe cuál es).
+  const listo = cursos !== null;
+  useEffect(() => { if (listo) musica.setBioma(bioma); }, [listo, bioma]);
 
   if (cursos === null) {
     return <Escena bioma="pradera">{error ? <p className="error" role="alert">{error}</p> : <p className="placa">Cargando…</p>}</Escena>;
@@ -326,7 +354,10 @@ export function Inicio() {
       {estado && <PanelDia racha={estado.racha} hoy={hoy} />}
       <div className="titulo-pantalla">
         <h1>Tus cursos</h1>
-        <Link to="/crear" className="boton chico" onClick={() => sonar("toque")}>+ Nuevo</Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <BotonMusica />
+          <Link to="/crear" className="boton chico" onClick={() => sonar("toque")}>+ Nuevo</Link>
+        </div>
       </div>
       {cursos.length === 0 ? (
         <div className="panel pergamino centro aparece" style={{ marginTop: 16 }}>

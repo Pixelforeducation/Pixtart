@@ -9,23 +9,31 @@
   position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; display: block;
   image-rendering: pixelated; transform: none; animation: none; pointer-events: none;
 }
-.heroe-equipado .heroe-fig > .heroe-arma { transform-origin: 69% 72%; }
+/* El arma vive en un SVG 1.5× mayor que el cuerpo (viewBox -8 -12 48 48): sobresale de la silueta.
+   El origen de giro es la mano (22, 22) → (30/48, 34/48). */
+.heroe-equipado .heroe-fig > svg.heroe-arma {
+  inset: auto; left: -25% !important; top: -37.5% !important; width: 150% !important; height: 150% !important;
+  transform-origin: 62.5% 70.8%; overflow: visible; z-index: 1;
+}
+.heroe-arma .arma-cuerda-tensa, .heroe-arma .arma-flecha-tensa, .heroe-arma .arma-gema-brillo { opacity: 0; }
 .heroe-fuerte .heroe-fig { transform: scaleX(1.1); }
 
 @media (prefers-reduced-motion: no-preference) {
   .heroe-equipado[data-anim="feliz"] .heroe-fig { animation: heroe-salto 0.7s steps(4) infinite; }
   .heroe-equipado[data-anim="caminar"] .heroe-fig { animation: heroe-paso 0.5s steps(2) infinite; }
-  .heroe-equipado .heroe-fig > .heroe-arma.ataque-orbe { animation: heroe-orbe 1.6s steps(4) infinite; }
+  .heroe-equipado .heroe-fig > .heroe-arma.ataque-orbe .arma-gema-brillo { animation: heroe-gema 1.6s steps(2) infinite; }
   .heroe-equipado .heroe-fig > .heroe-capa-trasera { animation: heroe-capa 1.8s steps(2) infinite; transform-origin: 50% 45%; }
 }
 @keyframes heroe-salto { 50% { translate: 0 -8%; } }
 @keyframes heroe-paso { 50% { translate: 0 -3%; } }
-@keyframes heroe-orbe { 50% { filter: drop-shadow(0 0 3px #8FB8FF) brightness(1.2); } }
+@keyframes heroe-gema { 50% { opacity: 0.55; } }
 @keyframes heroe-capa { 50% { transform: skewX(-3deg); } }
 
 /* Vista previa del héroe (Tienda / Perfil) */
 .vista-heroe { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .vista-heroe .heroe-equipado { flex: none; filter: drop-shadow(0 4px 0 rgb(0 0 0 / 0.35)); }
+/* El arma sobresale de la silueta (hasta ~25 % a la derecha y ~37 % arriba): se le deja aire. */
+.vista-heroe .heroe-equipado:has(svg.heroe-arma) { margin: 24px 32px 0 0; }
 .slots-equipo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; flex: 1; min-width: 220px; }
 .slot-equipo { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; text-align: center; font-size: 15px;
   border: 3px solid var(--c-borde, #2A1A0E); background: rgb(0 0 0 / 0.25); min-width: 0; }

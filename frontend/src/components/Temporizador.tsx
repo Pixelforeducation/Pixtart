@@ -52,7 +52,9 @@ export function Temporizador({ segundos, activo = true, onAgotado, clave, onSegu
   }, [activo, clave, segundos]);
 
   useEffect(() => {
-    if (activo && restante === 0 && !agotado.current) {
+    // Se mira la ref (que se reinicia al cambiar de pregunta) y no solo el estado: tras agotarse una
+    // pregunta el estado sigue en 0 durante el primer render de la siguiente y la daría por perdida.
+    if (activo && restante === 0 && restanteRef.current === 0 && !agotado.current) {
       agotado.current = true;
       cb.current();
     }

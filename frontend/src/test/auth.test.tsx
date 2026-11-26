@@ -75,6 +75,6 @@ describe("Login", () => {
     await u.type(screen.getByLabelText("Contraseña"), "contrasena123");
     await u.click(screen.getByRole("button", { name: "Entrar" }));
     expect(await screen.findByText("otra ruta")).toBeInTheDocument();
-    expect(sessionStorage.getItem("pixtart.token")).toBe("token-falso-demo@pixtart.mx");
+    expect(localStorage.getItem("pixtart.token")).toBe("token-falso-demo@pixtart.mx");
   });
 });
