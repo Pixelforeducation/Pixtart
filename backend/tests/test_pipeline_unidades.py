@@ -156,3 +156,35 @@ def test_validar_pdf_ok_y_ocr_sin_extractor():
     assert avisos and "escaneadas" in avisos[0]
     assert aplicar_ocr(b"", paginas, lambda d, n: {2: "y" * 100}) == []
     assert paginas[1].ocr and paginas[1].texto == "y" * 100
+
+
+def test_reparto_tipos_equilibrado_y_determinista():
+    tipos = ["multiple_choice", "fill_text", "ordering"]
+    assert prompts.reparto_tipos(tipos, 5) == {
+        "multiple_choice": 2, "fill_text": 2, "ordering": 1,
+    }
+    assert prompts.reparto_tipos(tipos, 5, 1) == {
+        "multiple_choice": 1, "fill_text": 2, "ordering": 2,
+    }
+    r = prompts.reparto_tipos(tipos * 2, 9)  # duplicados no cuentan doble
+    assert r == {"multiple_choice": 3, "fill_text": 3, "ordering": 3}
+    assert prompts.reparto_tipos(tipos, 2, 2) == {"multiple_choice": 1, "ordering": 1}
+    assert prompts.reparto_tipos(tipos, 0) == {} and prompts.reparto_tipos([], 3) == {}
+    for n in range(3, 20):
+        r = prompts.reparto_tipos(tipos, n, n)
+        assert sum(r.values()) == n and set(r) == set(tipos)
+        assert max(r.values()) - min(r.values()) <= 1
+
+
+def test_prompt_preguntas_pide_reparto_y_conserva_tipos_permitidos():
+    config = {"num_preguntas": 10, "dificultad": 2,
+              "tipos": ["multiple_choice", "true_false", "fill_text", "ordering"]}
+    texto = prompts.mensajes_preguntas(
+        "doc", config, "S", "N", "resumen", 6, 2, False, []
+    )[0]["content"]
+    assert "Tipos permitidos: multiple_choice, true_false, fill_text, ordering\n" in texto
+    assert "Reparto: 2 multiple_choice, 2 true_false, 1 fill_text, 1 ordering" in texto
+    regen = prompts.mensajes_regenerar(config, "ctx", {"tipo": "multiple_choice"}, None, [])
+    assert "Tipos permitidos: multiple_choice, true_false, fill_text, ordering\n" in (
+        regen[0]["content"]
+    )

@@ -140,3 +140,61 @@ Examen-aventura al cierre de cada sección (spec `final-level`; decisiones Q15, 
    la siguiente sección). Reprobado: `monedas: 0`, sin cofre ni progreso; solo queda la XP de los aciertos.
    Las preguntas sin responder no cuentan como timeout. Abandonar = no llamar `terminar` (o iniciar otro
    nivel): la partida se descarta y las preguntas quedan como vistas.
+
+## Ampliaciones v0.3 (juego)
+Todas son campos o rutas nuevas; nada de lo anterior cambia de forma (salvo que un nivel no aprobado ya no
+se completa, punto 5).
+
+1. **Estado** añade `minimo_aprobar` (int 0–100, por defecto 60), `equipo: {arma, armadura, ropa}` (item_id
+   público o `null`) y `evoluciones_mascotas: {item_id público: {xp, etapa: 1|2|3, xp_siguiente: int|null}}`
+   (todas las mascotas poseídas). `EstadoMascota` añade `xp`, `etapa`, `xp_siguiente` y `racha_sin_ayuda`
+   (de la mascota equipada); `ayudas_restantes_nivel` ya cuenta la ayuda extra de la etapa 3.
+2. **Equipables** (`arma_*`, `armadura_*`, `ropa_*`; id interno = público). Se poseen una vez: aparecen en
+   `inventario` con `cantidad: 1`; salen en cofres/drops y en la tienda.
+   - `GET /juego/tienda`: cada artículo añade `clase` ∈ `consumible|mascota|arma|armadura|ropa`.
+   - `POST /juego/tienda/comprar` de un equipable o mascota ya poseído → 409.
+   - `POST /juego/items/usar` con un equipable → 409.
+   - `POST /juego/equipo {item_id}` → `Estado`; 409 si no existe, no es equipable o no lo posee.
+   - `POST /juego/equipo/quitar {ranura: "arma"|"armadura"|"ropa"}` → `Estado` (422 si la ranura no es válida).
+3. `POST /juego/ajustes {minimo_aprobar: 0..100}` → `Estado` (422 fuera de rango).
+4. **Pausa** (mejora 2). `POST /juego/intentos/{id}/pausar` → 204 (idempotente; 409 si la partida ya terminó).
+   Congela el reloj de la pregunta en curso. `POST /juego/niveles/{id}/iniciar` con un intento `en_curso` de
+   ESE nivel (pausado o no) lo retoma en vez de crear otro:
+   `{intento_id, preguntas (todas, mismo orden), reanudado: true, progreso: {respondidas: [{pregunta_id,
+   correcta, xp_ganada}], restante_s, xp_ganada}}` (+ `final` en un nivel final, + `reintento` si lo era).
+   Al retomar, el reloj se descongela con el tiempo que quedaba (`restante_s` es de la primera pregunta sin
+   responder; 0 si ya no queda ninguna: llama a `terminar`). Si la partida no se pausó, el tiempo siguió
+   corriendo. `responder`/`ayuda` sobre una partida pausada la reanudan implícitamente (el tiempo pausado no
+   cuenta). El cupo de ayudas no se reinicia al retomar. Iniciar OTRO nivel abandona el intento en curso.
+5. **Mínimo para aprobar** (mejora 6). `terminar` en lecciones y calentamientos añade `aprobado`,
+   `porcentaje` (aciertos·100 // preguntas, entero hacia abajo) y `minimo`. `aprobado = porcentaje ≥
+   minimo_aprobar`. No aprobado: no se completa el nivel (sigue `actual` en el camino), no avanza el contador
+   de cofres, sin cofre ni ítem, monedas de nivel repetido (5–10), sin +1 vida, XP solo la de las respuestas.
+   El nivel final mantiene su propia regla (`g`).
+   **Reintento**: si el último intento terminado de un nivel no completado no se aprobó, `iniciar` añade
+   `reintento: true` y elige preguntas distintas de la misma dificultad: propias no servidas → de otros
+   niveles (no finales) de la sección con la dificultad de las servidas, nunca vistas primero → las ya
+   servidas como último recurso. Esas preguntas pueden venir de otros niveles (como el repaso).
+6. **Cofres y drops sin repetidos** (mejora 7): no dan mascotas ni equipables ya poseídos ni repiten ítem
+   dentro de un cofre; si no queda candidato, ese hueco se paga en monedas (ya sumadas en `monedas`), así que
+   `items` puede traer menos de 2.
+7. **Evolución de mascota** (mejora 10). `responder` añade `mascota_evento: {xp_ganada, evoluciono, etapa}`
+   (`null` en el nivel final o sin mascota viva). Acierto sin pedir ayuda en esa pregunta: racha + 1 y
+   `2 + min(3, racha // 3)` XP; con ayuda, fallo o timeout: racha 0 y 0 XP. Etapas: 1 desde 0 XP, 2 desde 60,
+   3 desde 200 (la 3 da +1 ayuda por nivel). Extensión: `terminar` (lecciones) añade `mascota_evento` con el
+   bonus de nivel (+10 aprobado sin ayudas ni vidas perdidas, +4 si cumple solo una) o `null` si no hubo bonus.
+   La XP es de la mascota equipada en ese momento. El nivel final no da XP de mascota.
+8. **Nivel final en cursos viejos** (mejora 8): al arrancar (`python -m app.core.crear_tablas`) y al validar/
+   publicar un curso (`pipeline.servicio.validar_curso`) se añade, de forma idempotente, un nivel
+   `es_final` («Nivel final: <sección>», sin preguntas propias) al final de cada sección que no lo tenga.
+
+Persistencia v0.3 (sin Alembic; `create_all` crea la columna en bases nuevas). `crear_tablas` ejecuta en
+PostgreSQL, de forma idempotente:
+
+```sql
+ALTER TABLE juego_estado ADD COLUMN IF NOT EXISTS extras JSON;
+```
+
+`extras` = `{minimo_aprobar, equipo: {arma, armadura, ropa}, evoluciones: {mascota_id interno: {xp,
+racha_sin_ayuda}}}` (NULL en filas viejas = valores por defecto). La pausa, `aprobado`, `reintento`,
+`xp_ganada`, `ayuda_pedida` y `vida_perdida` se guardan dentro del JSON `juego_intentos.preguntas`.

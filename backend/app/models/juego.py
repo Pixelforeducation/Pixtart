@@ -34,6 +34,9 @@ class EstadoJugador(TimestampMixin, Base):
     inventario: Mapped[dict[str, int]] = mapped_column(JSON, default=dict)  # item_id → cantidad
     mascotas: Mapped[list[str]] = mapped_column(JSON, default=list)  # ids de mascotas poseídas
     paleta_preferida: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # v0.3: {minimo_aprobar, equipo: {arma, armadura, ropa}, evoluciones: {mascota_id: {xp,
+    # racha_sin_ayuda}}}. Nullable: las filas viejas se leen con valores por defecto.
+    extras: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class CofrePendiente(TimestampMixin, Base):
@@ -54,7 +57,10 @@ class IntentoNivel(TimestampMixin, Base):
     """Una partida de un nivel.
 
     `preguntas`: lista de dicts `{pregunta_id, nivel_id, tiempo_s, respondida, correcta, timeout,
-    ayudas_dadas: [int], respuesta}` en el orden servido. `reloj_desde` es el instante (servidor)
+    ayudas_dadas: [int], respuesta}` en el orden servido. v0.3 añade a cada entrada
+    `xp_ganada` y `ayuda_pedida` (al responder), `pausada_en` (ISO; solo en la pregunta en
+    curso mientras la partida está pausada) y en la primera entrada `aprobado` (al terminar)
+    y `reintento` (si se sirvió como reintento). `reloj_desde` es el instante (servidor)
     desde el que corre el tiempo de la pregunta en curso: el inicio o la última respuesta.
     `segundos_extra` es tiempo añadido a la pregunta en curso (poción de tiempo).
     """

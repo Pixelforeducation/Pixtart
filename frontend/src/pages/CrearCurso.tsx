@@ -35,6 +35,9 @@ export function validarCurso(pdfs: File[], f: FormCurso): Record<string, string>
   return e;
 }
 
+/** Tipos marcados al abrir el formulario: una mezcla variada (antes solo opción múltiple y V/F). */
+export const TIPOS_POR_DEFECTO: TipoPregunta[] = ["multiple_choice", "true_false", "fill_text", "ordering"];
+
 export function aConfig(f: FormCurso): ConfigCurso {
   const tiempos: Partial<Record<TipoPregunta, number>> = {};
   for (const t of f.tipos) {
@@ -60,7 +63,7 @@ export function CrearCurso() {
   const [rechazos, setRechazos] = useState<string[]>([]);
   const [encima, setEncima] = useState(false);
   const [f, setF] = useState<FormCurso>({
-    titulo: "", num_preguntas: 20, dificultad: 3, tipos: ["multiple_choice", "true_false"],
+    titulo: "", num_preguntas: 20, dificultad: 3, tipos: [...TIPOS_POR_DEFECTO],
     minutos: { ...Object.fromEntries(Object.entries(MIN_POR_DEFECTO).map(([k, v]) => [k, String(v)])) }, repaso: "", instrucciones: "",
   });
   const [errores, setErrores] = useState<Record<string, string>>({});
@@ -170,7 +173,7 @@ export function CrearCurso() {
         </div>
         <fieldset>
           <legend>Tipos de pregunta y tiempo por pregunta</legend>
-          <p className="ayuda-campo">Deja el tiempo vacío para calcularlo automáticamente.</p>
+          <p className="ayuda-campo">Las preguntas se reparten de forma equilibrada entre los tipos que marques. Deja el tiempo vacío para calcularlo automáticamente.</p>
           {TIPOS_PREGUNTA.map((t) => (
             <div key={t} className="fila" style={{ justifyContent: "space-between" }}>
               <label className="casilla" htmlFor={`tipo-${t}`}>

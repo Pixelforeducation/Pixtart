@@ -4,6 +4,9 @@ Supuesto: ~1 nivel nuevo cada 3 minutos (20 niveles/hora). Cuenta las monedas de
 y las de los cofres (los ítems no se convierten a monedas). Con eso se fija:
 - común ≈ 1 hora de monedas, rara ≈ 3 horas,
 - legendaria = max(6000, 20 horas) — incluye la mascota legendaria.
+Los equipables (armas, armaduras, ropa) cuestan lo mismo que el resto de su rareza.
+La simulación no excluye únicos ya poseídos: la compensación en monedas de los slots sin
+candidatos (`recompensas.COMPENSACION`) no aparece aquí, así que el precio no se infla.
 El escudo de color es la excepción: 150 monedas, fijado por Q72.
 
 `PRECIOS` (item_id → monedas) se calcula perezosamente con una semilla fija, así que es estable.

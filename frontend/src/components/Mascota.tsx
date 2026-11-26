@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { EstadoMascota } from "../api";
+import type { EstadoMascota, EtapaMascota } from "../api";
+import { EvolucionMascota } from "../escenas/visuales";
 import { Comida } from "./Iconos";
 import { nombreEspecie, Sprite, srcMascota } from "./Sprite";
 import { formatoTiempo } from "./Temporizador";
@@ -14,9 +15,28 @@ interface Props {
   /** Se llama cuando la cuenta regresiva de resurrección llega a 0. */
   onRevive?: () => void;
   ahora?: () => number;
+  /** Etapa de evolución a dibujar (por defecto, `mascota.etapa`). */
+  etapa?: EtapaMascota;
 }
 
-export function Mascota({ mascota, onAyuda, ayudaPosible = true, onRevive, ahora = Date.now }: Props) {
+const NOMBRE_ETAPA = { 1: "Cría", 2: "Evolucionada", 3: "Forma final" } as const;
+
+/** Barra de XP de evolución de la mascota (etapa 1→2→3). */
+export function BarraEvolucion({ xp = 0, etapa = 1, xpSiguiente }: { xp?: number; etapa?: EtapaMascota; xpSiguiente?: number | null }) {
+  const base = etapa === 3 ? 200 : etapa === 2 ? 60 : 0;
+  const tope = xpSiguiente ?? null;
+  const pct = tope === null ? 100 : Math.max(3, Math.min(100, ((xp - base) / Math.max(1, tope - base)) * 100));
+  return (
+    <div className="evo-mascota-barra" aria-label={`Etapa ${etapa} de 3, ${xp} XP${tope !== null ? ` de ${tope}` : ""}`} role="group">
+      <div style={{ fontSize: 15 }}>
+        Etapa {etapa}/3 · {NOMBRE_ETAPA[etapa]} · {tope === null ? `${xp} XP (máxima)` : `${xp}/${tope} XP`}
+      </div>
+      <div className="barra oro" aria-hidden="true"><span style={{ width: `${pct}%` }} /></div>
+    </div>
+  );
+}
+
+export function Mascota({ mascota, onAyuda, ayudaPosible = true, onRevive, ahora = Date.now, etapa }: Props) {
   const reviveMs = mascota && !mascota.viva && mascota.revive_en ? Date.parse(mascota.revive_en) : null;
   const [restante, setRestante] = useState(() => (reviveMs ? Math.max(0, reviveMs - ahora()) : 0));
   const avisado = useRef(false);
@@ -41,11 +61,12 @@ export function Mascota({ mascota, onAyuda, ayudaPosible = true, onRevive, ahora
 
   if (!mascota) return <div className="mascota"><span>Sin mascota equipada</span></div>;
   const nombre = nombreEspecie(mascota.especie);
+  const et: EtapaMascota = etapa ?? mascota.etapa ?? 1;
 
   if (!mascota.viva) {
     return (
       <div className="mascota muerta" data-testid="mascota">
-        <Sprite src={srcMascota(mascota.especie)} alt={`${nombre} (descansando)`} />
+        <EvolucionMascota etapa={et}><Sprite src={srcMascota(mascota.especie)} alt={`${nombre} (descansando)`} /></EvolucionMascota>
         <div>
           <div className="pix-font" style={{ fontSize: 9 }}>{nombre} descansa</div>
           <div role="timer" aria-label={`Revive en ${formatoTiempo(restante / 1000)}`}>
@@ -60,9 +81,10 @@ export function Mascota({ mascota, onAyuda, ayudaPosible = true, onRevive, ahora
   const quedan = mascota.ayudas_restantes_nivel;
   return (
     <div className="mascota" data-testid="mascota">
-      <Sprite src={srcMascota(mascota.especie)} alt={`${nombre}, mascota ${RAREZA[mascota.rareza]}`} />
+      <EvolucionMascota etapa={et}><Sprite src={srcMascota(mascota.especie)} alt={`${nombre}, mascota ${RAREZA[mascota.rareza]}`} /></EvolucionMascota>
       <div>
         <div className="pix-font" style={{ fontSize: 9 }}>{nombre}</div>
+        {mascota.xp !== undefined && <BarraEvolucion xp={mascota.xp} etapa={et} xpSiguiente={mascota.xp_siguiente} />}
         <div className="fila" style={{ fontSize: 16, gap: 4 }}>
           <Comida /> <span>{mascota.comida} comida{mascota.hambrienta ? " · ¡hambrienta!" : ""}</span>
         </div>

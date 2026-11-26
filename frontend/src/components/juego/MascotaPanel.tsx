@@ -16,6 +16,28 @@ interface Props {
   aviso?: string | null;
 }
 
+const ETAPAS = ["", "Cría", "Evolucionada", "Forma final"];
+const UMBRALES = [0, 0, 60, 200];
+
+/** Barra de XP de evolución de la mascota (v0.3). No se pinta si el backend no manda `xp`. */
+export function BarraMascota({ mascota }: { mascota: EstadoMascota }) {
+  if (mascota.xp === undefined) return null;
+  const etapa = mascota.etapa ?? 1;
+  const sig = mascota.xp_siguiente ?? null;
+  const desde = UMBRALES[etapa] ?? 0;
+  const frac = sig === null ? 1 : Math.max(0, Math.min(1, (mascota.xp - desde) / Math.max(1, sig - desde)));
+  const texto = sig === null ? `${mascota.xp} XP · forma final` : `${mascota.xp}/${sig} XP`;
+  return (
+    <div className="jg-mp-evo" role="meter" aria-label={`Evolución de la mascota: etapa ${etapa} (${ETAPAS[etapa]}), ${texto}`}
+      aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(frac * 100)}>
+      <span className="jg-mp-etapa" aria-hidden="true">E{etapa}</span>
+      <span className="jg-mp-barra" aria-hidden="true"><span style={{ width: `${frac * 100}%` }} /></span>
+      <span className="jg-mp-xp" aria-hidden="true">{texto}</span>
+      {(mascota.racha_sin_ayuda ?? 0) >= 2 && <span className="jg-mp-racha" aria-hidden="true">racha {mascota.racha_sin_ayuda}</span>}
+    </div>
+  );
+}
+
 export function MascotaPanel({ mascota, onAyuda, ayudaPosible, onRevive, aviso }: Props) {
   const reviveMs = mascota && !mascota.viva && mascota.revive_en ? Date.parse(mascota.revive_en) : null;
   const [restante, setRestante] = useState(() => (reviveMs ? Math.max(0, reviveMs - Date.now()) : 0));
@@ -62,6 +84,7 @@ export function MascotaPanel({ mascota, onAyuda, ayudaPosible, onRevive, aviso }
         <div className="jg-mp-sub">
           <Comida tam={14} /> {mascota.comida} comida{mascota.hambrienta ? " · ¡tiene hambre!" : ""}
         </div>
+        <BarraMascota mascota={mascota} />
         {aviso && <div className="jg-mp-aviso" role="status">{aviso}</div>}
       </div>
       {onAyuda && (

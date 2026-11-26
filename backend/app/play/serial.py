@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from types import MappingProxyType
 from typing import Any
 
+from app.game.evolucion_mascota import EvolucionMascota
 from app.game.experiencia import EstadoProgreso
 from app.game.mascota import EstadoVidas, Mascota
 from app.game.recompensas import ITEMS, EstadoCofres, id_mascota_vigente
@@ -127,3 +129,47 @@ def tarjeta_desde_json(d: dict[str, Any]) -> EstadoTarjeta:
         repeticiones=int(d.get("repeticiones", 0)),
         datos=tuple((str(k), float(v)) for k, v in d.get("datos", [])),
     )
+
+
+# ---------------------------------------------------------------- extras (v0.3)
+
+MINIMO_APROBAR_POR_DEFECTO = 60
+RANURAS = ("arma", "armadura", "ropa")
+
+
+@dataclass
+class Extras:
+    """Ajustes y colecciones v0.3 guardados en `EstadoJugador.extras` (ids internos)."""
+
+    minimo_aprobar: int = MINIMO_APROBAR_POR_DEFECTO
+    equipo: dict[str, str | None] = field(default_factory=lambda: dict.fromkeys(RANURAS))
+    evoluciones: dict[str, EvolucionMascota] = field(default_factory=dict)
+
+
+def extras_desde_json(d: dict[str, Any] | None) -> Extras:
+    d = d or {}
+    try:
+        minimo = max(0, min(100, int(d.get("minimo_aprobar", MINIMO_APROBAR_POR_DEFECTO))))
+    except (TypeError, ValueError):
+        minimo = MINIMO_APROBAR_POR_DEFECTO
+    equipo_json = d.get("equipo") or {}
+    equipo = {r: (equipo_json.get(r) or None) for r in RANURAS}
+    evoluciones = {
+        str(k): EvolucionMascota(
+            xp=int(v.get("xp", 0)), racha_sin_ayuda=int(v.get("racha_sin_ayuda", 0))
+        )
+        for k, v in (d.get("evoluciones") or {}).items()
+        if isinstance(v, dict)
+    }
+    return Extras(minimo, equipo, evoluciones)
+
+
+def extras_a_json(x: Extras) -> dict[str, Any]:
+    return {
+        "minimo_aprobar": x.minimo_aprobar,
+        "equipo": {r: x.equipo.get(r) for r in RANURAS},
+        "evoluciones": {
+            k: {"xp": v.xp, "racha_sin_ayuda": v.racha_sin_ayuda}
+            for k, v in sorted(x.evoluciones.items())
+        },
+    }

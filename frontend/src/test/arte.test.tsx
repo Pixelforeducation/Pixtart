@@ -18,6 +18,7 @@ import {
   spriteUrl,
 } from "../arte";
 import catalogo from "../arte/catalogo.json";
+import { EQUIPABLES, esEquipable } from "../components/juego/HeroeEquipado";
 import manifiesto from "../arte/manifiesto.json";
 
 // Solo las rutas (carga perezosa: no se importa ningún SVG).
@@ -40,7 +41,10 @@ describe("contrato de arte", () => {
   });
 
   it("todo ítem y mascota del catálogo del backend tiene sprite (con alias)", () => {
-    for (const it of catalogo.items) expect(existeSprite(spriteItem(it.item_id)), it.item_id).toBe(true);
+    // Armas, armaduras y ropa (v0.3) se dibujan inline con las capas de HeroeEquipado, no con sprite.
+    for (const it of catalogo.items)
+      if (esEquipable(it.item_id)) expect(EQUIPABLES, it.item_id).toContain(it.item_id);
+      else expect(existeSprite(spriteItem(it.item_id)), it.item_id).toBe(true);
     for (const id of ["botiquin", "comida", "escudo", "pocion_resurreccion", "pocion_tiempo", "lupa", "mascota_mini-golem"])
       expect(existeSprite(spriteItem(id)), id).toBe(true);
     for (const e of ["mushroom-sprout", "windup-robot", "inkwell", "mini-golem", "book-golem", "ember-fox", "crystal-owl", "onyx-dragon", "imp-small", "black-knight"])

@@ -2,9 +2,9 @@
 
 import random
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -65,6 +65,18 @@ class PorPaleta(BaseModel):
     paleta_id: str
 
 
+class PorEquipable(BaseModel):
+    item_id: str
+
+
+class PorRanura(BaseModel):
+    ranura: Literal["arma", "armadura", "ropa"]
+
+
+class Ajustes(BaseModel):
+    minimo_aprobar: int = Field(ge=0, le=100)
+
+
 @router.get("/estado")
 def estado(j: Juego = Depends(juego)) -> dict[str, Any]:
     return j.vista_estado()
@@ -83,6 +95,12 @@ def iniciar(nivel_id: str, j: Juego = Depends(juego)) -> dict[str, Any]:
 @router.post("/intentos/{intento_id}/responder")
 def responder(intento_id: str, cuerpo: Responder, j: Juego = Depends(juego)) -> dict[str, Any]:
     return _ejecutar(j.responder, intento_id, cuerpo.pregunta_id, cuerpo.respuesta, cuerpo.tiempo_ms)
+
+
+@router.post("/intentos/{intento_id}/pausar", status_code=204)
+def pausar(intento_id: str, j: Juego = Depends(juego)) -> Response:
+    _ejecutar(j.pausar, intento_id)
+    return Response(status_code=204)
 
 
 @router.post("/intentos/{intento_id}/ayuda")
@@ -130,4 +148,22 @@ def equipar(cuerpo: PorMascota, j: Juego = Depends(juego)) -> dict[str, Any]:
 @router.post("/paleta")
 def elegir_paleta(cuerpo: PorPaleta, j: Juego = Depends(juego)) -> dict[str, Any]:
     _ejecutar(j.elegir_paleta, cuerpo.paleta_id)
+    return j.vista_estado()
+
+
+@router.post("/equipo")
+def equipar_item(cuerpo: PorEquipable, j: Juego = Depends(juego)) -> dict[str, Any]:
+    _ejecutar(j.equipar_item, cuerpo.item_id)
+    return j.vista_estado()
+
+
+@router.post("/equipo/quitar")
+def quitar_equipo(cuerpo: PorRanura, j: Juego = Depends(juego)) -> dict[str, Any]:
+    _ejecutar(j.quitar_equipo, cuerpo.ranura)
+    return j.vista_estado()
+
+
+@router.post("/ajustes")
+def ajustes(cuerpo: Ajustes, j: Juego = Depends(juego)) -> dict[str, Any]:
+    _ejecutar(j.ajustar, minimo_aprobar=cuerpo.minimo_aprobar)
     return j.vista_estado()

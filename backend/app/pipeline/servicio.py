@@ -250,9 +250,47 @@ def preguntas_del_curso(curso: Curso) -> list[Pregunta]:
     return [p for s in curso.secciones for n in s.niveles for p in n.preguntas]
 
 
+def asegurar_niveles_finales(curso: Curso) -> int:
+    """Mejora 8 (idempotente): añade un nivel `es_final` al final de cada sección con niveles
+    que no lo tenga (cursos anteriores al nivel final). Sin preguntas propias: juega con las
+    de su sección. Devuelve cuántos creó; no hace commit."""
+    creados = 0
+    for s in curso.secciones:
+        niveles = list(s.niveles)
+        if not niveles or any(n.es_final for n in niveles):
+            continue
+        orden = max(n.orden for n in niveles) + 1
+        datos = _nivel_final(s.titulo, [{"documento": n.documento} for n in niveles])
+        s.niveles.append(
+            Nivel(
+                titulo=datos["titulo"],
+                orden=orden,
+                es_calentamiento=False,
+                es_final=True,
+                resumen="",
+                pagina_inicio=min((n.pagina_inicio for n in niveles
+                                   if n.pagina_inicio is not None), default=None),
+                pagina_fin=max((n.pagina_fin for n in niveles
+                                if n.pagina_fin is not None), default=None),
+                documento=datos.get("documento"),
+            )
+        )
+        creados += 1
+    return creados
+
+
+def asegurar_niveles_finales_todos(db: Session) -> int:
+    """`asegurar_niveles_finales` para todos los cursos (al arrancar, `crear_tablas`)."""
+    creados = sum(asegurar_niveles_finales(c) for c in db.query(Curso).all())
+    db.commit()
+    return creados
+
+
 def validar_curso(db: Session, curso: Curso) -> int:
     """Revalida todas las preguntas (incluye duplicados entre niveles) y recalcula tiempos
-    no fijados a mano. Devuelve cuántas son inválidas."""
+    no fijados a mano. Devuelve cuántas son inválidas. También asegura el nivel final de
+    cada sección (se llama al publicar)."""
+    asegurar_niveles_finales(curso)
     preguntas = preguntas_del_curso(curso)
     tiempos = curso.config.get("tiempos_por_tipo")
     lote = validar_lote([pregunta_a_dict(p) for p in preguntas], curso.config.get("tipos"))

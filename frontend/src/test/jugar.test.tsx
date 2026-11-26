@@ -20,7 +20,8 @@ describe("ayudaPermitida", () => {
 describe("Jugar (con mock)", () => {
   it("usa la ayuda de la mascota, responde, ve feedback y termina el nivel", async () => {
     guardarToken("t");
-    renderCon(<Jugar />, { ruta: "/jugar/100?curso=1", patron: "/jugar/:nivelId" });
+    // Mínimo 50 %: 1 de 2 aciertos aprueba (el caso de no aprobar está en jugarV03.test).
+    renderCon(<Jugar />, { ruta: "/jugar/100?curso=1", patron: "/jugar/:nivelId", op: { estado: { minimo_aprobar: 50 } } });
     const u = userEvent.setup();
     expect(await screen.findByText("¿Qué pigmento capta la luz en las plantas?")).toBeInTheDocument();
     await u.click(await screen.findByRole("button", { name: /Ayuda de .* \(2 restantes\)/ }));

@@ -169,3 +169,94 @@ def test_determinista_con_seed():
 
     assert corrida(42) == corrida(42)
     assert corrida(42) != corrida(43)
+
+
+# ---------------------------------------------------------------- equipables y sin duplicados
+
+EQUIPABLES = {
+    "arma_espada": ("arma", Rareza.COMUN), "arma_arco": ("arma", Rareza.COMUN),
+    "arma_baculo": ("arma", Rareza.RARA), "arma_martillo": ("arma", Rareza.RARA),
+    "arma_katana": ("arma", Rareza.LEGENDARIA),
+    "armadura_cuero": ("armadura", Rareza.COMUN), "armadura_malla": ("armadura", Rareza.RARA),
+    "armadura_placas": ("armadura", Rareza.LEGENDARIA),
+    "ropa_tunica_verde": ("ropa", Rareza.COMUN), "ropa_capa_roja": ("ropa", Rareza.COMUN),
+    "ropa_traje_mago": ("ropa", Rareza.RARA), "ropa_manto_real": ("ropa", Rareza.LEGENDARIA),
+}
+
+
+def test_catalogo_equipables_y_ranuras():
+    for item_id, (ranura, rareza) in EQUIPABLES.items():
+        d = rc.ITEMS[item_id]
+        assert d.rareza is rareza and d.clase in rc.EQUIPABLES and str(d.clase) == ranura
+        assert rc.ranura_de(item_id) == ranura
+        assert rc.es_unico(item_id)
+    assert rc.ranura_de("botiquin") is None and rc.ranura_de("mascota_nox") is None
+    assert rc.ranura_de("no_existe") is None
+    assert rc.es_unico("mascota_nox") and rc.es_unico("mascota_chispa")  # id viejo
+    assert not rc.es_unico("botiquin") and not rc.es_unico("no_existe")
+    assert rc.EQUIPABLES == {rc.ClaseItem.ARMA, rc.ClaseItem.ARMADURA, rc.ClaseItem.ROPA}
+
+
+def test_ids_publicos_de_equipables_son_el_interno():
+    from app.play import ids
+
+    for item_id in EQUIPABLES:
+        assert ids.publico(item_id) == item_id and ids.interno(item_id) == item_id
+
+
+def test_cofre_sin_duplicados():
+    rng = random.Random(12)
+    e = rc.EstadoCofres()
+    for _ in range(5000):
+        e, c = rc.abrir_cofre(e, "legendario", rng)
+        assert len(c.items) == len(set(c.items))
+
+
+def test_cofre_no_da_unicos_excluidos():
+    unicos = frozenset(i for i in rc.ITEMS if rc.es_unico(i))
+    rng = random.Random(13)
+    for _ in range(2000):
+        _, c = rc.abrir_cofre(rc.EstadoCofres(), "normal", rng, excluir=unicos)
+        assert not set(c.items) & unicos and len(c.items) == 2
+
+
+def test_cofre_legendario_sin_legendarios_disponibles_cae_y_reinicia_pity():
+    legendarios = frozenset(i.id for i in rc.items_de_rareza(Rareza.LEGENDARIA))
+    e = rc.EstadoCofres(cofres_sin_legendario=29)
+    e2, c = rc.abrir_cofre(e, "normal", random.Random(0), excluir=legendarios)
+    assert len(c.items) == 2 and not c.trae_legendario
+    assert e2.cofres_sin_legendario == 0
+
+
+def test_slot_sin_candidatos_se_paga_en_monedas():
+    todo = frozenset(rc.ITEMS)
+    e, c = rc.abrir_cofre(rc.EstadoCofres(cofres_sin_legendario=29), "normal",
+                          random.Random(1), excluir=todo)
+    assert c.items == ()
+    base = random.Random(1).randint(40, 80)
+    assert c.monedas == base + rc.COMPENSACION[Rareza.RARA] + rc.COMPENSACION[Rareza.LEGENDARIA]
+
+
+def test_drop_nivel_respeta_excluir_y_compensa():
+    todo = frozenset(rc.ITEMS)
+    rng = random.Random(14)
+    compensados = 0
+    for _ in range(3000):
+        _, d = rc.drop_nivel(rc.EstadoCofres(), rng, excluir=todo)
+        assert d.item is None
+        compensados += d.monedas > 30
+    assert compensados > 0
+    unicos = frozenset(i for i in rc.ITEMS if rc.es_unico(i))
+    rng = random.Random(15)
+    for _ in range(3000):
+        _, d = rc.drop_nivel(rc.EstadoCofres(), rng, excluir=unicos)
+        assert d.item is None or not rc.es_unico(d.item)
+
+
+def test_equipables_salen_en_cofres():
+    rng = random.Random(16)
+    vistos = set()
+    for _ in range(3000):
+        _, c = rc.abrir_cofre(rc.EstadoCofres(), "legendario", rng)
+        vistos |= set(c.items)
+    assert set(EQUIPABLES) <= vistos

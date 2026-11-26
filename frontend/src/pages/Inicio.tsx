@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import type { Camino, CofreAbierto, CursoResumen, NodoCamino } from "../api";
+import type { Camino, CofreAbierto, CursoResumen, EtapaMascota, Equipo, NodoCamino } from "../api";
 import { useApi, useEstadoJuego } from "../contexto";
 import { Candado } from "../components/Iconos";
 import { nombreItem } from "../components/ItemIcono";
@@ -56,7 +56,7 @@ function Glifo({ n }: { n: NodoCamino }) {
   return <span aria-hidden="true" className="glifo">{n.tipo === "calentamiento" ? "☼" : "▶"}</span>;
 }
 
-interface Actores { tier: number; especie?: string | null }
+interface Actores { tier: number; especie?: string | null; equipo?: Equipo | null; etapa?: EtapaMascota }
 type Pista = { id: string; txt: string } | null;
 
 function Nodo({ n, i, previo, cerca, actores, onTocar, refActual }: {
@@ -74,11 +74,11 @@ function Nodo({ n, i, previo, cerca, actores, onTocar, refActual }: {
         <>
           <span className="empieza" aria-hidden="true">{tipo === "final" ? "¡JEFE!" : "¡JUGAR!"}</span>
           <div className={`actor ${izquierda ? "a-la-derecha" : "a-la-izquierda"}`} aria-hidden="true">
-            <HeroeVisual tier={actores.tier} alt="" className="heroe" />
+            <HeroeVisual tier={actores.tier} equipo={actores.equipo} alt="" className="heroe" />
           </div>
           {actores.especie && (
             <div className={`actor-mascota ${izquierda ? "a-la-izquierda" : "a-la-derecha"}`} aria-hidden="true">
-              <MascotaVisual especie={actores.especie} alt="" />
+              <MascotaVisual especie={actores.especie} etapa={actores.etapa} alt="" />
             </div>
           )}
         </>
@@ -127,13 +127,10 @@ export function CaminoVista({ camino, cursoId, onCofre, actores = { tier: 1 } }:
     let ultimo: NodoCamino | undefined;
     for (const s of camino.secciones) for (const n of s.niveles) {
       if (ultimo) m.set(String(n.id), ultimo);
-      if (n.tipo !== "cofre") ultimo = n;
+      if (n.tipo !== "cofre" && n.tipo !== "final") ultimo = n; // el jefe no cierra la sección siguiente
     }
     return m;
   }, [camino]);
-
-  const hayFinal = camino.secciones.some((s) => s.niveles.some((n) => tipoDe(n) === "final"));
-  const todoHecho = camino.secciones.every((s) => s.niveles.every((n) => n.estado === "completado"));
 
   const tocar = (n: NodoCamino, previo?: NodoCamino) => {
     const tipo = tipoDe(n);
@@ -141,6 +138,7 @@ export function CaminoVista({ camino, cursoId, onCofre, actores = { tier: 1 } }:
       sonar("bloqueado");
       const txt = tipo === "cofre"
         ? "Completa los niveles de antes para abrir este cofre."
+        : tipo === "final" ? "Completa la sección para retar al jefe del castillo."
         : previo ? `Completa «${previo.titulo}» para desbloquearlo.` : "Aún está bloqueado.";
       setPista({ id: String(n.id), txt });
       return;
@@ -161,8 +159,9 @@ export function CaminoVista({ camino, cursoId, onCofre, actores = { tier: 1 } }:
         const faltan = faltanParaCofre(niveles);
         const abierta = niveles.some((n) => n.tipo !== "cofre" && n.estado !== "bloqueado");
         const iCofre = niveles.findIndex((n) => n.tipo === "cofre" && n.estado !== "completado");
-        const extra = !hayFinal && si === camino.secciones.length - 1; // castillo decorativo al final
-        const total = niveles.length + (extra ? 1 : 0);
+        // El nivel final llega del backend como un nodo más (tipo "final"); si un curso no lo trae, no se
+        // inventa un castillo de adorno.
+        const total = niveles.length;
         const puntos: [number, number][] = Array.from({ length: total }, (_, i) => [xDe(i), ARRIBA + i * PASO]);
         let hasta = -1; // tramo recorrido: hasta el último nodo no bloqueado
         niveles.forEach((n, i) => { if (n.estado !== "bloqueado") hasta = i; });
@@ -195,16 +194,6 @@ export function CaminoVista({ camino, cursoId, onCofre, actores = { tier: 1 } }:
                   cerca={abierta && i === iCofre && faltan !== null && faltan <= 1}
                   actores={actores} onTocar={tocar} refActual={actual} />
               ))}
-              {extra && (
-                <div className="paso tipo-final" style={{ left: xDe(total - 1), top: ARRIBA + (total - 1) * PASO }}>
-                  <button type="button" className={`nodo final ${todoHecho ? "disponible" : "bloqueado"}`} aria-disabled="true"
-                    aria-label="Nivel final: el jefe del curso (próximamente)" title="Nivel final (próximamente)"
-                    onClick={() => { sonar("bloqueado"); setPista({ id: "final", txt: todoHecho ? "El castillo del jefe abre muy pronto." : "Termina el camino para retar al jefe del castillo." }); }}>
-                    <Castillo tam={84} apagado={!todoHecho} />
-                  </button>
-                  <span className="etq">Nivel final</span>
-                </div>
-              )}
             </div>
           </section>
         );
@@ -360,7 +349,7 @@ export function Inicio() {
       {error && <p className="error" role="alert">{error}</p>}
       {cofre && <DialogoCofre cofre={cofre} onCerrar={() => setCofre(null)} />}
       {elegido && !camino && !error && <p className="placa">Cargando camino…</p>}
-      {elegido && camino && <CaminoVista camino={camino} cursoId={elegido} onCofre={abrirCofre} actores={{ tier, especie }} />}
+      {elegido && camino && <CaminoVista camino={camino} cursoId={elegido} onCofre={abrirCofre} actores={{ tier, especie, equipo: estado?.equipo ?? null, etapa: estado?.mascota?.etapa }} />}
     </Escena>
   );
 }

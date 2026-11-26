@@ -4,7 +4,9 @@
  * no quede con un ícono de imagen rota. En cuanto el arte llegue, se ve el sprite real.
  */
 import { useEffect, useState, type ReactNode } from "react";
+import type { Equipo } from "../../api";
 import { Sprite, type Anim } from "../../arte";
+import { HeroeEquipado } from "./HeroeEquipado";
 
 type Rol = "anfitrion" | "heroe" | "mascota";
 
@@ -17,11 +19,24 @@ interface Props {
   className?: string;
   /** Figura alternativa si el sprite no carga. */
   respaldo?: ReactNode;
+  /** Solo héroe: equipo puesto (ropa, armadura, arma). Los cosméticos de tier salen siempre. */
+  equipo?: Equipo | null;
 }
 
-export function Personaje({ nombre, rol, anim = "idle", escala = 3, alt, className = "", respaldo }: Props) {
+const TIER_HEROE = /^heroe\/tier(\d+)$/;
+
+export function Personaje({ nombre, rol, anim = "idle", escala = 3, alt, className = "", respaldo, equipo }: Props) {
   const [fallo, setFallo] = useState(false);
   useEffect(() => setFallo(false), [nombre]);
+  const tier = rol === "heroe" ? TIER_HEROE.exec(nombre)?.[1] : undefined;
+  if (tier) {
+    // El héroe se dibuja con sus capas (mejoras 5 y 9); HeroeEquipado ya trae su propio respaldo.
+    return (
+      <span className={`jg-personaje jg-rol-${rol} ${className}`} data-anim={anim}>
+        <HeroeEquipado tier={Number(tier)} equipo={equipo} anim={anim} escala={escala} alt={alt} />
+      </span>
+    );
+  }
   return (
     <span className={`jg-personaje jg-rol-${rol} ${className}`} data-anim={anim} onError={() => setFallo(true)}>
       {fallo ? (respaldo ?? <FiguraPixel rol={rol} variante={nombre} escala={escala} alt={alt} />) : <Sprite nombre={nombre} anim={anim} escala={escala} alt={alt} />}

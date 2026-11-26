@@ -1,0 +1,67 @@
+/* Héroe equipado (HeroeEquipado.tsx) y evolución visual de mascotas (MascotaVisual / Mascota). */
+.heroe-equipado { display: inline-block; position: relative; aspect-ratio: 1 / 1; line-height: 0; vertical-align: bottom; max-width: 100%; }
+/* Sin especificidad: cualquier clase de la pantalla (.personaje-grande, .actor .heroe…) manda en el tamaño. */
+:where(.heroe-equipado) { width: var(--heroe-lado, 96px); }
+.heroe-equipado .heroe-fig { position: absolute; inset: 0; display: block; transform-origin: 50% 100%; }
+/* Selectores fuertes: algunas pantallas estilan `img` dentro de su contenedor (.actor img, .jg-personaje img). */
+.heroe-equipado .heroe-fig > .heroe-capa,
+.heroe-equipado .heroe-fig > img.heroe-capa {
+  position: absolute !important; inset: 0; width: 100% !important; height: 100% !important; display: block;
+  image-rendering: pixelated; transform: none; animation: none; pointer-events: none;
+}
+.heroe-equipado .heroe-fig > .heroe-arma { transform-origin: 69% 72%; }
+.heroe-fuerte .heroe-fig { transform: scaleX(1.1); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .heroe-equipado[data-anim="feliz"] .heroe-fig { animation: heroe-salto 0.7s steps(4) infinite; }
+  .heroe-equipado[data-anim="caminar"] .heroe-fig { animation: heroe-paso 0.5s steps(2) infinite; }
+  .heroe-equipado .heroe-fig > .heroe-arma.ataque-orbe { animation: heroe-orbe 1.6s steps(4) infinite; }
+  .heroe-equipado .heroe-fig > .heroe-capa-trasera { animation: heroe-capa 1.8s steps(2) infinite; transform-origin: 50% 45%; }
+}
+@keyframes heroe-salto { 50% { translate: 0 -8%; } }
+@keyframes heroe-paso { 50% { translate: 0 -3%; } }
+@keyframes heroe-orbe { 50% { filter: drop-shadow(0 0 3px #8FB8FF) brightness(1.2); } }
+@keyframes heroe-capa { 50% { transform: skewX(-3deg); } }
+
+/* Vista previa del héroe (Tienda / Perfil) */
+.vista-heroe { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.vista-heroe .heroe-equipado { flex: none; filter: drop-shadow(0 4px 0 rgb(0 0 0 / 0.35)); }
+.slots-equipo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; flex: 1; min-width: 220px; }
+.slot-equipo { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; text-align: center; font-size: 15px;
+  border: 3px solid var(--c-borde, #2A1A0E); background: rgb(0 0 0 / 0.25); min-width: 0; }
+.slot-equipo .ranura { font-family: var(--fuente-pixel, monospace); font-size: 9px; text-transform: uppercase; opacity: 0.85; }
+.slot-equipo.vacio { opacity: 0.6; border-style: dashed; }
+.slot-equipo .icono-equipable { width: 40px; height: 40px; }
+.equipado-chip { font-family: var(--fuente-pixel, monospace); font-size: 9px; color: #58C94A; }
+
+/* Pestañas de la tienda */
+.pestanas-tienda { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 14px; }
+.pestanas-tienda button[aria-selected="true"] { outline: 3px solid var(--c-moneda, #F2C230); outline-offset: 1px; }
+
+/* Mascotas: etapas de evolución */
+.mascota-evo { position: relative; display: inline-block; line-height: 0; }
+.mascota-evo.etapa-2 > img, .mascota-evo.etapa-2 > svg { filter: saturate(1.35) drop-shadow(0 0 4px #8FB8FF) drop-shadow(0 0 1px #3F7FE0); }
+.mascota-evo.etapa-3 { transform: scale(1.18); transform-origin: 50% 100%; }
+.mascota-evo.etapa-3 > img, .mascota-evo.etapa-3 > svg { filter: saturate(1.5) drop-shadow(0 0 5px #FFE27A) drop-shadow(0 0 2px #F2A81D); }
+.mascota-evo .mascota-corona { position: absolute; left: 50%; top: -6%; width: 34%; max-width: 28px; height: auto; transform: translateX(-50%); pointer-events: none; }
+.mascota-evo .mascota-estrella { position: absolute; width: 18%; max-width: 12px; height: auto; pointer-events: none; }
+.mascota-evo .mascota-estrella.e1 { left: -4%; top: 18%; }
+.mascota-evo .mascota-estrella.e2 { right: -4%; top: 40%; }
+@media (prefers-reduced-motion: no-preference) {
+  .mascota-evo .mascota-estrella { animation: mascota-destello 1.2s steps(2) infinite; }
+  .mascota-evo .mascota-estrella.e2 { animation-delay: 0.6s; }
+}
+@keyframes mascota-destello { 50% { opacity: 0.2; } }
+
+.evo-mascotas { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 10px; }
+.evo-mascota { display: flex; align-items: center; gap: 12px; }
+.evo-mascota .retrato { width: 56px; height: 56px; flex: none; display: grid; place-items: center; }
+.evo-mascota .retrato img { width: 48px; height: 48px; }
+.evo-mascota .datos { flex: 1; min-width: 0; }
+.evo-mascota .etapas { display: inline-flex; gap: 3px; margin-left: 6px; vertical-align: middle; }
+.evo-mascota .etapas span { width: 10px; height: 10px; border: 2px solid #2A1A0E; background: #4A4A55; }
+.evo-mascota .etapas span.on { background: #FFE27A; }
+
+/* Escalera de evolución del Perfil */
+.evo-retrato .heroe-equipado { width: 100%; }
+.evo.futuro .evo-retrato .heroe-equipado { filter: brightness(0) opacity(0.55); }

@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import type { CofreAbierto, RespuestaPregunta } from "../api";
+import type { Api, CofreAbierto, RespuestaPregunta } from "../api";
 import { useApi } from "../contexto";
 import { Corazones } from "../components/Corazones";
 import { PreguntaVista } from "../components/Pregunta";
@@ -19,6 +19,7 @@ import { guardarSonido, musica, sonidoGuardado, tocar, type Efecto } from "./aud
 import { crearApiDemo, type ApiFinal } from "./demo";
 import {
   aplicarRespuesta,
+  calcularProgreso,
   encuentroDe,
   enFuria,
   hayCanvas,
@@ -99,6 +100,9 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
   const [racha, setRacha] = useState(0);
   const [critico, setCritico] = useState(false);
   const [cofreAbriendo, setCofreAbriendo] = useState(false);
+  // v0.3 (mejora 2): partida retomada tras una pausa.
+  const [reanudo, setReanudo] = useState<{ idx: number; restante: number } | null>(null);
+  const pendiente = useRef<IntentoFinal["intento_id"] | null>(null);
 
   const lienzo = useRef<HTMLDivElement>(null);
   const vistaRef = useRef<Vista | null>(null);
@@ -113,12 +117,23 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
     let vivo = true;
     setFase("cargando"); setIntento(null); setInfo(null); setProg(null); setIdx(0); setMonstruo(null);
     setResultado(null); setFin(null); setCofre(null); setError(null); setFuria(false); setBonus(false);
-    setRacha(0); setCritico(false); setCofreAbriendo(false);
+    setRacha(0); setCritico(false); setCofreAbriendo(false); setReanudo(null);
     api.iniciarNivel(nivelId).then((r) => {
       if (!vivo) return;
       const it = r as IntentoFinal;
       const inf = infoDesde(it);
-      setIntento(it); setInfo(inf); setProg(inf); setFase("intro");
+      pendiente.current = it.intento_id;
+      let p: ProgresoFinal = inf;
+      const pr = it.reanudado ? it.progreso : null;
+      if (pr && pr.respondidas.length > 0) {
+        const a = pr.respondidas.filter((x) => x.correcta).length;
+        const f = pr.respondidas.length - a;
+        // Si el servidor ya manda el progreso en `final`, manda él; si no, se reconstruye.
+        if (inf.aciertos + inf.fallos !== pr.respondidas.length) p = calcularProgreso(inf.n, inf.requeridas, a, f);
+        setIdx(Math.min(pr.respondidas.length, inf.n - 1));
+      }
+      if (pr) setReanudo({ idx: Math.min(pr.respondidas.length, Math.max(0, inf.n - 1)), restante: Math.max(0, pr.restante_s) });
+      setIntento(it); setInfo(inf); setProg(p); setFase("intro");
     }).catch((e) => { if (vivo) { setError(mensajeError(e)); setFase("error"); } });
     if (cursoId) {
       api.camino(cursoId).then((c) => {
@@ -134,7 +149,13 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
       setSuelo("gris");
       setSeccion({ indice: 0, ultima: true });
     }
-    return () => { vivo = false; };
+    return () => {
+      vivo = false;
+      // Salir sin terminar pausa la partida (la demo local no tiene `pausar`).
+      const pausar = (api as Partial<Pick<Api, "pausar">>).pausar;
+      if (pendiente.current !== null && pausar) pausar(pendiente.current).catch(() => {});
+      pendiente.current = null;
+    };
   }, [api, nivelId, cursoId, demo]);
 
   useEffect(() => cargar(), [cargar]);
@@ -195,14 +216,26 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
     }
     setIdx(i); setResultado(null); setError(null);
     inicio.current = Date.now();
+    const q = intento.preguntas[i];
+    if (reanudo && reanudo.idx === i && q) inicio.current -= Math.max(0, q.tiempo_s - reanudo.restante) * 1000;
     setFase("desafio");
-  }, [intento, info, seccion, furia, sfx]);
+  }, [intento, info, seccion, furia, sfx, reanudo]);
+
+  /** Primer paso tras la intro: desde 0 o, si se retomó, desde la primera pregunta sin responder. */
+  const empezar = () => {
+    if (!prog || !intento) return;
+    const hechas = prog.aciertos + prog.fallos;
+    if (hechas > 0 && (prog.resultado === "derrota" || hechas >= intento.preguntas.length)) return void cerrarRef.current();
+    if (hechas > 0 && prog.resultado === "victoria") { setIdx(hechas - 1); setFase("victoria"); return; }
+    void irA(hechas, null);
+  };
 
   const cerrar = useCallback(async () => {
     if (!intento) return;
     setFase("terminando");
     try {
       const f = (await api.terminar(intento.intento_id)) as FinFinal;
+      pendiente.current = null;
       setFin(f);
       setFase("fin");
     } catch (e) {
@@ -378,6 +411,9 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
         <div className="nf-bajo">
           <div className="panel oscuro nf-tarjeta">
             <h2>{demo ? "Demostración del nivel final" : "Nivel final"}</h2>
+            {reanudo && prog && prog.aciertos + prog.fallos > 0 && (
+              <p className="aviso" role="status">Partida retomada: sigues en la pregunta {Math.min(info.n, prog.aciertos + prog.fallos + 1)} con el tiempo que te quedaba.</p>
+            )}
             <p>Cruza el bioma hasta el castillo: cada monstruo es una pregunta con tiempo y el jefe aguarda al final.</p>
             <ul className="nf-chips" aria-label="Reglas del examen">
               <li><strong>{info.n}</strong> preguntas</li>
@@ -385,7 +421,7 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
               <li><strong>{info.margen}</strong> {info.margen === 1 ? "error permitido" : "errores permitidos"}</li>
             </ul>
             <button type="button" className="boton grande" autoFocus disabled={modo === "canvas" && !motorListo}
-              onClick={() => { if (sonido) tocar("golpe", true); void irA(0, null); }}>
+              onClick={() => { if (sonido) tocar("golpe", true); empezar(); }}>
               {modo === "canvas" && !motorListo ? "Preparando el mundo…" : "¡A la aventura!"}
             </button>
             <ul className="nf-reglas">
@@ -414,7 +450,7 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
           <div className="nf-desafio-cab">
             <span className="nf-etq">{monstruo ? `${monstruo.ficha.nombre} · ${TIPO_TXT[monstruo.tipo]}` : "Desafío"}{furia && monstruo?.tipo === "jefe" ? " · ¡FURIA!" : ""}</span>
             {(fase === "desafio" || fase === "resolviendo") && (
-              <Temporizador segundos={pregunta.tiempo_s} activo={fase === "desafio"} clave={pregunta.id} onAgotado={() => void responder(null)} />
+              <Temporizador segundos={reanudo && reanudo.idx === idx ? reanudo.restante : pregunta.tiempo_s} activo={fase === "desafio"} clave={pregunta.id} onAgotado={() => void responder(null)} />
             )}
           </div>
           {fase === "avanzando" ? (
@@ -484,7 +520,7 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
         <div className="nf-dialogo" role="alertdialog" aria-modal="true" aria-labelledby="nf-salir-t">
           <div className="panel oscuro">
             <h2 id="nf-salir-t">¿Abandonar el nivel final?</h2>
-            <p>Perderás el progreso de esta partida (no cuesta vidas). Las preguntas vistas cuentan como vistas.</p>
+            <p>{demo ? "Perderás el progreso de esta demostración." : "Tu partida queda en pausa: al volver sigues en la misma pregunta con el tiempo que te quedaba."}</p>
             <div className="fila">
               <button type="button" className="boton peligro" onClick={volver}>Abandonar</button>
               <button type="button" className="boton secundario" autoFocus onClick={() => setSalir(false)}>Seguir jugando</button>

@@ -204,6 +204,9 @@ def test_iniciar_no_filtra_respuesta(entorno):
 
 def test_flujo_nivel_aciertos_y_errores(entorno):
     e = entorno
+    # 5/10 aciertos: con el mínimo por defecto (60 %) no pasaría; se baja a 50 %.
+    assert e.client.post("/api/juego/ajustes", json={"minimo_aprobar": 50},
+                         headers=e.h1).status_code == 200
     datos = _iniciar(e, "C1L1")
     it = datos["intento_id"]
     xp = 0
@@ -441,7 +444,7 @@ def test_tienda_comprar_con_y_sin_monedas(entorno):
     lista = e.client.get("/api/juego/tienda", headers=e.h1).json()
     precios = {i["item_id"]: i["precio"] for i in lista}
     assert precios["escudo"] == 150 and precios["mascota_onyx-dragon"] >= 6000
-    assert set(lista[0]) == {"item_id", "nombre", "rareza", "precio"}
+    assert set(lista[0]) == {"item_id", "nombre", "rareza", "precio", "clase"}
     r = e.client.post("/api/juego/tienda/comprar", json={"item_id": "botiquin"}, headers=e.h1)
     assert r.status_code == 409 and "monedas" in r.json()["detail"]
     _modificar(e, monedas=precios["botiquin"] + 5)
@@ -493,6 +496,7 @@ def test_aislamiento_entre_usuarios(entorno):
 
 def test_repaso_leitner_mete_vencidas(entorno):
     e = entorno
+    _modificar(e, extras={"minimo_aprobar": 0})  # completar L1 aunque falle todo
     _jugar(e, "C1L1", bien=False)
     e.reloj.avanzar(days=2)  # caja 1 → vence a 1 día
     datos = _iniciar(e, "C1L2")

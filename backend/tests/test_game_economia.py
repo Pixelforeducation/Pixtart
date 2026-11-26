@@ -68,3 +68,16 @@ def test_minimo_legendario_con_economia_pobre():
 def test_atributo_desconocido():
     with pytest.raises(AttributeError):
         eco.NO_EXISTE  # noqa: B018
+
+
+def test_equipables_con_precio_de_su_rareza():
+    hora = eco.simulacion_base().monedas_por_hora
+    for item in rc.CATALOGO:
+        if item.clase in rc.EQUIPABLES:
+            p = eco.precio(item.id)
+            if item.rareza is Rareza.COMUN:
+                assert p == pytest.approx(hora, rel=0.1)
+            elif item.rareza is Rareza.RARA:
+                assert p == pytest.approx(3 * hora, rel=0.1)
+            else:
+                assert p >= 6000

@@ -7,6 +7,7 @@ import { Escena, type Bioma } from "./escenas";
 import { IconoUI, MascotaVisual } from "./escenas/visuales";
 import { Contador, Llama } from "./escenas/hud";
 import { sonar } from "./escenas/sonido";
+import { musica, type Pista } from "./escenas/musica";
 import { PALETAS } from "./theme/paleta";
 import { Login, Registro } from "./pages/Auth";
 import { Ajustes } from "./pages/Ajustes";
@@ -78,7 +79,7 @@ function Hud() {
         </span>
         {m && (
           <Link to="/perfil" className={`hud-chip mascota-mini solo-ancho ${m.viva ? "" : "muerta"}`} aria-label={`Mascota: ${nombreEspecie(m.especie)}${m.viva ? "" : " (descansando)"}`} title="Mascota">
-            <MascotaVisual especie={m.especie} alt="" />
+            <MascotaVisual especie={m.especie} etapa={m.etapa} alt="" />
           </Link>
         )}
         <Link to="/ajustes" aria-label="Ajustes" className="hud-chip boton-icono" title="Ajustes" onClick={() => sonar("toque")}><IconoUI id="ajustes" /></Link>
@@ -125,6 +126,28 @@ function Marco() {
   );
 }
 
+/** Pista de música según la ruta: el camino suena a "mapa", los niveles a "nivel" y el jefe a "final". */
+export function pistaDeRuta(ruta: string): Pista {
+  if (ruta.startsWith("/final/")) return "final";
+  if (ruta.startsWith("/jugar/")) return "nivel";
+  return "mapa";
+}
+
+/**
+ * Música de fondo del juego (activa por defecto; suena tras el primer toque). Vive fuera del marco para
+ * cubrir también /final/demo. Jugar pide "nivel" por su cuenta; pedir la misma pista dos veces no hace nada.
+ */
+function MusicaDeFondo() {
+  const loc = useLocation();
+  const { token } = useSesion();
+  const enJuego = Boolean(token) || loc.pathname === "/final/demo";
+  useEffect(() => {
+    if (enJuego) musica.reproducir(pistaDeRuta(loc.pathname));
+    else musica.detener();
+  }, [enJuego, loc.pathname]);
+  return null;
+}
+
 function SoloInvitado({ children }: { children: JSX.Element }) {
   const { token } = useSesion();
   return token ? <Navigate to="/" replace /> : children;
@@ -132,6 +155,8 @@ function SoloInvitado({ children }: { children: JSX.Element }) {
 
 export function App() {
   return (
+    <>
+    <MusicaDeFondo />
     <Routes>
       <Route path="/entrar" element={<SoloInvitado><Login /></SoloInvitado>} />
       <Route path="/registro" element={<SoloInvitado><Registro /></SoloInvitado>} />
@@ -152,5 +177,6 @@ export function App() {
         <Route path="*" element={<Proximamente titulo="No encontrado" texto="Esta página no existe." bioma="cueva" />} />
       </Route>
     </Routes>
+    </>
   );
 }

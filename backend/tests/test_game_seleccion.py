@@ -113,3 +113,45 @@ def test_vencidas_ordenadas():
         "c": s.EstadoTarjeta(vence=T0 + timedelta(days=1)),
     }
     assert s.vencidas_ordenadas(tarjetas, m, T0) == ["b", "a"]
+
+
+# ---------------------------------------------------------------- reintento (mejora 6)
+
+
+def test_reintento_prefiere_propias_no_falladas():
+    propias = [f"p{i}" for i in range(10)]
+    fallidas = propias[:5]
+    elegidas = s.elegir_reintento(propias, ["a1", "a2"], fallidas, 5, random.Random(1))
+    assert sorted(elegidas) == sorted(propias[5:])
+
+
+def test_reintento_completa_con_alternas_nunca_vistas_primero():
+    propias = ["p0", "p1", "p2", "p3"]
+    fallidas = ["p0", "p1", "p2"]
+    alternas = ["a0", "a1", "a2"]
+    vistas = {"a0": T0, "a1": T0 - timedelta(days=3)}
+    elegidas = s.elegir_reintento(propias, alternas, fallidas, 3, random.Random(2), vistas=vistas)
+    assert set(elegidas) == {"p3", "a2", "a1"}  # a2 nunca vista, luego a1 (la más vieja)
+
+
+def test_reintento_repite_falladas_solo_como_ultimo_recurso():
+    propias = ["p0", "p1", "p2"]
+    elegidas = s.elegir_reintento(propias, ["a0"], ["p0", "p1"], 4, random.Random(3))
+    assert len(elegidas) == 4 == len(set(elegidas))
+    assert {"p2", "a0"} <= set(elegidas)
+    assert len(set(elegidas) & {"p0", "p1"}) == 2
+    # No inventa: si no hay más, devuelve menos de n
+    assert len(s.elegir_reintento(propias, [], ["p0"], 10, random.Random(3))) == 3
+
+
+def test_reintento_alternas_no_duplican_propias_ni_falladas():
+    elegidas = s.elegir_reintento(["p0", "x"], ["x", "p0", "a0"], ["p0"], 3, random.Random(4))
+    assert sorted(elegidas) == ["a0", "p0", "x"]
+
+
+def test_reintento_determinista_y_n_cero():
+    args = ([f"p{i}" for i in range(8)], ["a0", "a1"], ["p0", "p1"], 5)
+    assert s.elegir_reintento(*args, random.Random(7)) == s.elegir_reintento(
+        *args, random.Random(7)
+    )
+    assert s.elegir_reintento(*args[:3], 0, random.Random(7)) == []

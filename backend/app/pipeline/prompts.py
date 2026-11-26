@@ -11,7 +11,7 @@ La configuración del autor va aparte, en <instrucciones_del_autor>, fuera del d
 import json
 import re
 
-VERSION_PROMPT = "2026-11-24.2"
+VERSION_PROMPT = "2026-11-25.1"
 
 TIPOS = [
     "multiple_choice",
@@ -118,6 +118,29 @@ def bloque_instrucciones(config: dict) -> str:
     return "<instrucciones_del_autor>\n" + "\n".join(lineas) + "\n</instrucciones_del_autor>"
 
 
+def reparto_tipos(tipos: list[str], n: int, desplazamiento: int = 0) -> dict[str, int]:
+    """Reparto equilibrado y determinista de `n` preguntas entre `tipos` (mejora 1).
+
+    Cada tipo recibe `n // len(tipos)`; las sobrantes van a tipos consecutivos empezando en
+    `desplazamiento` (rotando), así niveles distintos reparten el sobrante a tipos distintos y,
+    con `n >= len(tipos)`, todos los tipos salen al menos una vez. Conserva el orden de `tipos`
+    y omite los que reciben 0.
+    """
+    unicos = list(dict.fromkeys(tipos))
+    if n <= 0 or not unicos:
+        return {}
+    k = len(unicos)
+    base, sobra = divmod(n, k)
+    cuenta = dict.fromkeys(unicos, base)
+    for j in range(sobra):
+        cuenta[unicos[(desplazamiento + j) % k]] += 1
+    return {t: c for t, c in cuenta.items() if c > 0}
+
+
+def texto_reparto(reparto: dict[str, int]) -> str:
+    return ", ".join(f"{c} {t}" for t, c in reparto.items())
+
+
 def mensajes_estructura(documentos: Documentos, config: dict, max_niveles: int) -> list[dict]:
     encargo = (
         "<encargo>\nAnaliza el documento y propone la estructura del curso: secciones "
@@ -162,6 +185,11 @@ def mensajes_preguntas(
         f"Genera exactamente {n} preguntas sobre este nivel usando el documento.\n"
         "En cada pregunta indica fuente_documento (nombre del documento) y fuente_pagina.\n"
         f"Tipos permitidos: {', '.join(config['tipos'])}\n"
+        f"Reparto: {texto_reparto(reparto_tipos(config['tipos'], n, len(ya_hechas)))}\n"
+        "Respeta ese reparto: mezcla los tipos de forma equilibrada (no hagas todas de opción "
+        "múltiple) y usa cada tipo permitido al menos una vez si el número de preguntas lo "
+        "permite. Si un tipo de verdad no encaja con el contenido, sustitúyelo por otro "
+        "de los permitidos.\n"
         f"Dificultad aproximada: {dificultad} (1-5).\n"
         f"{evitar}\n</encargo>"
     )
@@ -182,7 +210,13 @@ def mensajes_regenerar(
         "<encargo>\nReemplaza esta pregunta por una nueva y mejor, del mismo nivel. "
         "Genera exactamente 1 pregunta.\n"
         f"Tipos permitidos: {', '.join(config['tipos'])}\n"
-        f"Pregunta actual: {json.dumps(pregunta_actual, ensure_ascii=False)}\n"
+        + (
+            "Si el autor no pide un tipo concreto, puedes usar cualquier tipo permitido; "
+            "prefiere uno distinto de multiple_choice para variar el curso.\n"
+            if len(set(config["tipos"])) > 1
+            else ""
+        )
+        + f"Pregunta actual: {json.dumps(pregunta_actual, ensure_ascii=False)}\n"
         + (
             "Indicación del autor para el cambio: "
             + _neutralizar(instruccion.strip(), _ETIQUETAS)
