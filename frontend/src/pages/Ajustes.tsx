@@ -1,11 +1,50 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { ApiKey, Limites } from "../api";
-import { useApi, useSesion } from "../contexto";
+import { useApi, useEstadoJuego, useSesion } from "../contexto";
 import { mensajeError } from "../lib/validacion";
 import { AjusteAnimaciones } from "../escenas/AjusteAnimaciones";
 import { AjusteSonido } from "../components/AjusteSonido";
 
 const fmt = (n: number) => n.toLocaleString("es-MX");
+export const MINIMO_DEF = 60;
+const PASOS_MINIMO = Array.from({ length: 11 }, (_, i) => i * 10);
+
+/** Mínimo de aciertos para pasar un nivel (0–100 %, pasos de 10). Se guarda en el servidor (Estado.minimo_aprobar). */
+function AjusteMinimo() {
+  const api = useApi();
+  const { estado, poner } = useEstadoJuego();
+  const actual = estado?.minimo_aprobar ?? MINIMO_DEF;
+  const [guardando, setGuardando] = useState(false);
+  const [msj, setMsj] = useState<{ ok: boolean; txt: string } | null>(null);
+
+  const cambiar = async (v: number) => {
+    setGuardando(true);
+    setMsj(null);
+    try {
+      poner(await api.guardarAjustesJuego({ minimo_aprobar: v }));
+      setMsj({ ok: true, txt: `Guardado: necesitas ${v} % de aciertos para pasar un nivel.` });
+    } catch (err) {
+      setMsj({ ok: false, txt: mensajeError(err) });
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  return (
+    <section className="panel" aria-labelledby="h-minimo">
+      <h2 id="h-minimo" style={{ marginTop: 0 }}>Mínimo para pasar un nivel</h2>
+      <div className="campo">
+        <label htmlFor="minimo-aprobar">Porcentaje de aciertos</label>
+        <select id="minimo-aprobar" value={actual} disabled={!estado || guardando}
+          onChange={(e) => void cambiar(Number(e.target.value))}>
+          {PASOS_MINIMO.map((v) => <option key={v} value={v}>{v} %{v === MINIMO_DEF ? " (recomendado)" : ""}</option>)}
+        </select>
+      </div>
+      <p className="ayuda-campo">Si no llegas, repites el nivel con preguntas diferentes de la misma dificultad. El nivel final tiene su propia regla.</p>
+      {msj && <p className={msj.ok ? "exito" : "error"} role={msj.ok ? "status" : "alert"}>{msj.txt}</p>}
+    </section>
+  );
+}
 
 export function Ajustes() {
   const api = useApi();
@@ -141,6 +180,7 @@ export function Ajustes() {
         ) : <p>Cargando…</p>}
       </section>
 
+      <AjusteMinimo />
       <AjusteSonido />
       <AjusteAnimaciones />
 

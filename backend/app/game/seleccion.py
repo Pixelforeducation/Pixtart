@@ -3,6 +3,7 @@
 - `elegir_preguntas`: toma `n` preguntas sin repetir las vistas recientemente; si no alcanzan,
   relaja usando las vistas hace más tiempo. Las vencidas de repaso entran primero, con un
   máximo del 20 % del nivel.
+- `elegir_reintento`: al repetir un nivel no aprobado, evita las preguntas que ya salieron.
 - Repaso: interfaz `MotorRepaso` (lista para FSRS) y `Leitner` de 5 cajas con intervalos
   1, 3, 7, 16 y 35 días. Acierto → caja+1; fallo o timeout → caja 1.
 """
@@ -59,6 +60,58 @@ def elegir_preguntas(
         if len(elegidas) >= n:
             break
         elegidas.append(c)
+    rng.shuffle(elegidas)
+    return elegidas
+
+
+def elegir_reintento(
+    propias: Sequence[Id],
+    alternas: Sequence[Id],
+    fallidas: Sequence[Id],
+    n: int,
+    rng: random.Random,
+    *,
+    vistas: Mapping[Id, datetime] | None = None,
+) -> list[Id]:
+    """Preguntas para repetir un nivel no aprobado (mejora 6): diferentes, misma dificultad.
+
+    `propias`: ids del nivel. `alternas`: ids de otros niveles (no finales) de la misma sección
+    con la dificultad de alguna fallida. `fallidas`: ids servidos en el intento no aprobado.
+    Prioridad: propias no fallidas → alternas no fallidas (nunca vistas primero, luego las vistas
+    hace más tiempo) → fallidas como último recurso. Sin repetidos; el orden final se baraja.
+    """
+    if n <= 0:
+        return []
+    vistas = vistas or {}
+    servidas = set(fallidas)
+    elegidas: list[Id] = []
+    tomadas: set[Id] = set()
+
+    def tomar(grupo: list[Id]) -> None:
+        for c in grupo:
+            if len(elegidas) >= n:
+                return
+            if c not in tomadas:
+                elegidas.append(c)
+                tomadas.add(c)
+
+    propias_u = list(dict.fromkeys(propias))
+    frescas = [c for c in propias_u if c not in servidas]
+    rng.shuffle(frescas)
+    tomar(frescas)
+
+    alt = [c for c in dict.fromkeys(alternas) if c not in servidas and c not in tomadas]
+    nuevas = [c for c in alt if c not in vistas]
+    rng.shuffle(nuevas)
+    viejas = [c for c in alt if c in vistas]
+    rng.shuffle(viejas)
+    viejas.sort(key=lambda c: vistas[c])
+    tomar(nuevas + viejas)
+
+    repetibles = list(dict.fromkeys(fallidas))
+    rng.shuffle(repetibles)
+    tomar(repetibles)
+
     rng.shuffle(elegidas)
     return elegidas
 

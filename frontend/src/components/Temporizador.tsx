@@ -17,10 +17,12 @@ interface Props {
   onSegundo?: (restante: number) => void;
   /** Segundos finales en que el reloj "se pone nervioso" (tiembla y hace tic). */
   nervioso?: number;
+  /** Duración total de la pregunta (para la barra) cuando `segundos` es lo que queda, p. ej. al retomar. */
+  total?: number;
 }
 
 /** Cuenta regresiva por pregunta con reloj de arena y barra. Llama `onAgotado` una sola vez al llegar a 0. */
-export function Temporizador({ segundos, activo = true, onAgotado, clave, onSegundo, nervioso = 5 }: Props) {
+export function Temporizador({ segundos, activo = true, onAgotado, clave, onSegundo, nervioso = 5, total }: Props) {
   const [restante, setRestante] = useState(segundos);
   const restanteRef = useRef(segundos);
   const agotado = useRef(false);
@@ -65,7 +67,8 @@ export function Temporizador({ segundos, activo = true, onAgotado, clave, onSegu
 
   const urgente = restante <= 10;
   const tiembla = activo && restante > 0 && restante <= nervioso;
-  const frac = segundos > 0 ? Math.max(0, Math.min(1, restante / segundos)) : 0;
+  const base = Math.max(segundos, total ?? 0);
+  const frac = base > 0 ? Math.max(0, Math.min(1, restante / base)) : 0;
   const tono = frac > 0.5 && !urgente ? "verde" : frac > 0.25 && !urgente ? "ambar" : "rojo";
   return (
     <div className={`temporizador jg-reloj jg-reloj-${tono} ${urgente ? "urgente" : ""} ${tiembla ? "nervioso" : ""}`} role="timer"

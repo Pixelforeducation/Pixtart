@@ -176,24 +176,52 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
     escudos: 1,
     racha: 3,
     vidas: 10,
-    mascota: { id: 1, especie: "mini-golem", rareza: "rara", viva: true, revive_en: null, comida: 4, hambrienta: false, ayudas_restantes_nivel: 2 },
+    mascota: { id: 1, especie: "mini-golem", rareza: "rara", viva: true, revive_en: null, comida: 4, hambrienta: false, ayudas_restantes_nivel: 2, xp: 0, etapa: 1, xp_siguiente: 60, racha_sin_ayuda: 0 },
     inventario: [
       { item_id: "botiquin", cantidad: 1 },
       { item_id: "comida", cantidad: 2 },
       { item_id: "pocion_resurreccion", cantidad: 1 },
-      { item_id: "mascota_ember-fox", cantidad: 1 },
+      { item_id: "mascota_crystal-owl", cantidad: 1 },
+      // v0.3 (F2): equipables poseídos (cantidad 1; se quedan en el inventario aunque estén puestos).
+      { item_id: "arma_espada", cantidad: 1 },
+      { item_id: "ropa_tunica_verde", cantidad: 1 },
     ],
+    equipo: { arma: null, armadura: null, ropa: null },
+    evoluciones_mascotas: {
+      "mascota_mini-golem": { xp: 0, etapa: 1, xp_siguiente: 60 },
+      "mascota_crystal-owl": { xp: 75, etapa: 2, xp_siguiente: 200 },
+    },
     ...op.estado,
   };
   const tienda: T.ArticuloTienda[] = [
-    { item_id: "botiquin", nombre: "Botiquín", rareza: "comun", precio: 400 },
-    { item_id: "comida", nombre: "Comida de mascota", rareza: "comun", precio: 250 },
-    { item_id: "escudo", nombre: "Escudo de color", rareza: "comun", precio: 150 },
-    { item_id: "pocion_resurreccion", nombre: "Poción de resurrección", rareza: "rara", precio: 1500 },
-    { item_id: "mascota_mini-golem", nombre: "Mini gólem", rareza: "rara", precio: 3000 },
-    { item_id: "mascota_ember-fox", nombre: "Zorro de brasas", rareza: "legendaria", precio: 6000 },
+    { item_id: "botiquin", nombre: "Botiquín", rareza: "comun", precio: 400, clase: "consumible" },
+    { item_id: "comida", nombre: "Comida de mascota", rareza: "comun", precio: 250, clase: "consumible" },
+    { item_id: "escudo", nombre: "Escudo de color", rareza: "comun", precio: 150, clase: "consumible" },
+    { item_id: "pocion_resurreccion", nombre: "Poción de resurrección", rareza: "rara", precio: 1500, clase: "consumible" },
+    { item_id: "mascota_mini-golem", nombre: "Mini gólem", rareza: "rara", precio: 3000, clase: "mascota" },
+    { item_id: "mascota_ember-fox", nombre: "Zorro de brasas", rareza: "legendaria", precio: 6000, clase: "mascota" },
+    // v0.3 (F2): equipables. Precio por rareza como el resto (común 400, rara 1500, legendaria 6000).
+    { item_id: "arma_espada", nombre: "Espada", rareza: "comun", precio: 400, clase: "arma" },
+    { item_id: "arma_arco", nombre: "Arco", rareza: "comun", precio: 400, clase: "arma" },
+    { item_id: "arma_baculo", nombre: "Báculo", rareza: "rara", precio: 1500, clase: "arma" },
+    { item_id: "arma_martillo", nombre: "Martillo", rareza: "rara", precio: 1500, clase: "arma" },
+    { item_id: "arma_katana", nombre: "Katana", rareza: "legendaria", precio: 6000, clase: "arma" },
+    { item_id: "armadura_cuero", nombre: "Armadura de cuero", rareza: "comun", precio: 400, clase: "armadura" },
+    { item_id: "armadura_malla", nombre: "Cota de malla", rareza: "rara", precio: 1500, clase: "armadura" },
+    { item_id: "armadura_placas", nombre: "Armadura de placas", rareza: "legendaria", precio: 6000, clase: "armadura" },
+    { item_id: "ropa_tunica_verde", nombre: "Túnica verde", rareza: "comun", precio: 400, clase: "ropa" },
+    { item_id: "ropa_capa_roja", nombre: "Capa roja", rareza: "comun", precio: 400, clase: "ropa" },
+    { item_id: "ropa_traje_mago", nombre: "Traje de mago", rareza: "rara", precio: 1500, clase: "ropa" },
+    { item_id: "ropa_manto_real", nombre: "Manto real", rareza: "legendaria", precio: 6000, clase: "ropa" },
   ];
+  // v0.3 (F2): mascotas y equipables se poseen una sola vez.
+  const esUnico = (id: string) => /^(mascota|arma|armadura|ropa)_/.test(id);
+  const posee = (id: string) =>
+    estado.inventario.some((i) => i.item_id === id && i.cantidad > 0) || (estado.mascota ? `mascota_${estado.mascota.especie}` === id : false);
+  let cofresAbiertos = 0;
   const intentos = new Map<string, { nivelId: string; preguntas: T.Pregunta[]; aciertos: number; fallos: number; calentamiento: boolean; ayudasUsadas: Set<string> }>();
+  // v0.3 (F1): partidas en curso por nivel (pausa/reanudar), niveles no aprobados y evolución de la mascota.
+  const juego03 = { enCurso: new Map<string, { iid: string; respondidas: { pregunta_id: Id; correcta: boolean; xp_ganada: number }[]; relojDesde: number; consumidoMs: number; pausada: boolean; ayudasAntes: number }>(), noAprobados: new Set<string>(), racha: 0 };
 
   const buscarNivel = (nivelId: Id) => {
     for (const c of cursos.values())
@@ -354,6 +382,10 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
             if (cuenta % 5 === 0 || n === s.niveles[s.niveles.length - 1])
               niveles.push({ id: `cofre-${n.id}`, titulo: "Cofre", estado: est === "completado" ? "completado" : "bloqueado", tipo: "cofre" });
           });
+          // Nivel final de la sección (mejora 8): bloqueado hasta completar todos sus niveles. El mock no
+          // tiene servidor del jefe, así que lleva el id "demo": /final/demo juega con `nivel-final/demo.ts`.
+          const hecha = s.niveles.length > 0 && s.niveles.every((n) => completados.has(String(n.id)));
+          niveles.push({ id: "demo", titulo: `Nivel final: ${s.titulo}`, estado: hecha ? "disponible" : "bloqueado", tipo: "final" });
           return { id: s.id, titulo: s.titulo, niveles };
         }),
       };
@@ -362,19 +394,36 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
       const r = buscarNivel(nid);
       if (!r) throw new ErrorApi(404, "Nivel no encontrado.");
       revisarRevivir();
+      const jugables = (qs: T.Pregunta[]) => qs.map((q) => {
+        const { respuesta: _r, valida: _v, problemas: _p, ...resto } = q;
+        void _r; void _v; void _p;
+        const jug: T.PreguntaJugable = { ...resto };
+        if (!["open", "math_problem", "proof"].includes(q.tipo)) delete jug.explicacion;
+        return jug;
+      });
+      // v0.3: si hay una partida en curso de ESTE nivel, se retoma con el tiempo que le quedaba.
+      const previa = juego03.enCurso.get(String(nid));
+      const itPrevio = previa && intentos.get(previa.iid);
+      if (previa && itPrevio) {
+        const actual = itPrevio.preguntas[previa.respondidas.length];
+        const restante_s = actual ? Math.max(0, Math.round(actual.tiempo_s - previa.consumidoMs / 1000)) : 0;
+        previa.pausada = false;
+        previa.relojDesde = ahora();
+        return {
+          intento_id: Number(previa.iid),
+          preguntas: jugables(itPrevio.preguntas),
+          reanudado: true,
+          progreso: { respondidas: clonar(previa.respondidas), restante_s, xp_ganada: previa.respondidas.reduce((s, x) => s + x.xp_ganada, 0) },
+        };
+      }
       if (estado.mascota) estado.mascota.ayudas_restantes_nivel = { comun: 1, rara: 2, legendaria: 3 }[estado.mascota.rareza];
+      const reintento = juego03.noAprobados.has(String(nid)) && !completados.has(String(nid));
+      // Reintento: el mock solo tiene las preguntas del nivel (último recurso), pero las sirve en otro orden.
+      const qs = reintento ? [...r.n.preguntas].reverse() : r.n.preguntas;
       const iid = nuevoId();
-      intentos.set(String(iid), { nivelId: String(nid), preguntas: r.n.preguntas, aciertos: 0, fallos: 0, calentamiento: r.n.es_calentamiento, ayudasUsadas: new Set() });
-      return {
-        intento_id: iid,
-        preguntas: r.n.preguntas.map((q) => {
-          const { respuesta: _r, valida: _v, problemas: _p, ...resto } = q;
-          void _r; void _v; void _p;
-          const jug: T.PreguntaJugable = { ...resto };
-          if (!["open", "math_problem", "proof"].includes(q.tipo)) delete jug.explicacion;
-          return jug;
-        }),
-      };
+      intentos.set(String(iid), { nivelId: String(nid), preguntas: qs, aciertos: 0, fallos: 0, calentamiento: r.n.es_calentamiento, ayudasUsadas: new Set() });
+      juego03.enCurso.set(String(nid), { iid: String(iid), respondidas: [], relojDesde: ahora(), consumidoMs: 0, pausada: false, ayudasAntes: estado.mascota?.ayudas_restantes_nivel ?? 0 });
+      return { intento_id: iid, preguntas: jugables(qs), ...(reintento ? { reintento: true } : {}) };
     },
     async responder(iid, e) {
       const it = intentos.get(String(iid));
@@ -395,7 +444,31 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
         }
       }
       const xp = correcta ? 10 : 0;
-      return clonar({ correcta, respuesta_correcta: q.respuesta, explicacion: q.explicacion, vidas: estado.vidas, mascota: estado.mascota, xp_ganada: xp });
+      // v0.3: progreso de la partida (para pausar/reanudar) y evolución de la mascota.
+      const ec = juego03.enCurso.get(it.nivelId);
+      const m = estado.mascota;
+      let mascota_evento: T.EventoMascota | null = null;
+      if (m?.viva) {
+        const usoAyuda = ec ? m.ayudas_restantes_nivel < ec.ayudasAntes : false;
+        const antes = m.etapa ?? 1;
+        let ganada = 0;
+        if (correcta && !usoAyuda) {
+          juego03.racha += 1;
+          ganada = 2 + Math.min(3, Math.floor(juego03.racha / 3));
+        } else juego03.racha = 0;
+        m.xp = (m.xp ?? 0) + ganada;
+        m.racha_sin_ayuda = juego03.racha;
+        m.etapa = m.xp >= 200 ? 3 : m.xp >= 60 ? 2 : 1;
+        m.xp_siguiente = m.etapa === 3 ? null : m.etapa === 2 ? 200 : 60;
+        mascota_evento = { xp_ganada: ganada, evoluciono: m.etapa > antes, etapa: m.etapa };
+      }
+      if (ec && ec.iid === String(iid)) {
+        ec.respondidas.push({ pregunta_id: q.id, correcta, xp_ganada: xp });
+        ec.relojDesde = ahora();
+        ec.consumidoMs = 0;
+        ec.ayudasAntes = m?.ayudas_restantes_nivel ?? 0;
+      }
+      return clonar({ correcta, respuesta_correcta: q.respuesta, explicacion: q.explicacion, vidas: estado.vidas, mascota: estado.mascota, xp_ganada: xp, mascota_evento });
     },
     async ayuda(iid, pid) {
       const it = intentos.get(String(iid));
@@ -421,6 +494,21 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
     async terminar(iid) {
       const it = intentos.get(String(iid));
       if (!it) throw new ErrorApi(404, "Intento no encontrado.");
+      if (juego03.enCurso.get(it.nivelId)?.iid === String(iid)) juego03.enCurso.delete(it.nivelId);
+      // v0.3: mínimo de aciertos. Si no se alcanza, el nivel no se completa (sin cofre, drop ni vida).
+      // Los calentamientos no exigen mínimo.
+      const esCalentamiento = [...cursos.values()].some((c) => c.secciones.some((s) => s.niveles.some((n) => String(n.id) === it.nivelId && n.es_calentamiento)));
+      const minimo = esCalentamiento ? 0 : estado.minimo_aprobar ?? 60;
+      const porcentaje = Math.round((100 * it.aciertos) / Math.max(1, it.preguntas.length));
+      const aprobado = porcentaje >= minimo;
+      if (!aprobado) {
+        juego03.noAprobados.add(it.nivelId);
+        const xpRes = it.aciertos * 10;
+        estado.monedas += 7;
+        estado.xp_color = Math.min(3000, estado.xp_color + xpRes);
+        return { xp_ganada: xpRes, monedas: 7, perfecto: false, vidas: estado.vidas, drop: null, cofre: null, aprobado, porcentaje, minimo };
+      }
+      juego03.noAprobados.delete(it.nivelId);
       const repetido = completados.has(it.nivelId);
       completados.add(it.nivelId);
       const perfecto = it.fallos === 0;
@@ -429,16 +517,32 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
       estado.monedas += monedas;
       estado.xp_color = Math.min(3000, estado.xp_color + xp);
       if (estado.mascota?.viva) estado.vidas = Math.min(10, estado.vidas + 1);
-      return { xp_ganada: xp, monedas, perfecto, vidas: estado.vidas, drop: perfecto ? { item_id: "comida", nombre: "Comida de mascota", rareza: "comun" as const } : null, cofre: completados.size % 3 === 0 ? { id: nuevoId(), tipo: "normal" as const } : null };
+      return { xp_ganada: xp, monedas, perfecto, vidas: estado.vidas, drop: perfecto ? { item_id: "comida", nombre: "Comida de mascota", rareza: "comun" as const } : null, cofre: completados.size % 3 === 0 ? { id: nuevoId(), tipo: "normal" as const } : null, aprobado, porcentaje, minimo };
     },
     async abrirCofre() {
-      estado.monedas += 60;
-      return { items: [{ item_id: "botiquin", nombre: "Botiquín", rareza: "comun", cantidad: 1 }], monedas: 60 };
+      // v0.3 (mejora 7): sin ítems repetidos dentro del cofre y sin únicos que ya poseas;
+      // si no queda candidato para un hueco, se paga en monedas. Rotación determinista (sin Math.random).
+      cofresAbiertos += 1;
+      const candidatos = tienda.filter((a) => a.item_id !== "escudo" && !(esUnico(a.item_id) && posee(a.item_id)));
+      const items: T.Item[] = [];
+      let monedas = 60;
+      for (let hueco = 0; hueco < 2; hueco++) {
+        const libres = candidatos.filter((a) => !items.some((i) => i.item_id === a.item_id));
+        if (libres.length === 0) { monedas += 100; continue; }
+        const a = libres[(cofresAbiertos * 7 + hueco * 3) % libres.length];
+        items.push({ item_id: a.item_id, nombre: a.nombre, rareza: a.rareza, cantidad: 1 });
+        const e = estado.inventario.find((i) => i.item_id === a.item_id);
+        if (e) e.cantidad += esUnico(a.item_id) ? 0 : 1;
+        else estado.inventario.push({ item_id: a.item_id, cantidad: 1 });
+      }
+      estado.monedas += monedas;
+      return { items, monedas };
     },
     tienda: () => ok(tienda),
     async comprar(itemId) {
       const a = tienda.find((t) => t.item_id === itemId);
       if (!a) throw new ErrorApi(404, "Ese objeto no está a la venta.");
+      if (esUnico(itemId) && posee(itemId)) throw new ErrorApi(409, "Ya tienes ese artículo.");
       if (estado.monedas < a.precio) throw new ErrorApi(409, "No te alcanzan las monedas.");
       estado.monedas -= a.precio;
       if (itemId === "escudo") estado.escudos = Math.min(2, estado.escudos + 1);
@@ -484,12 +588,47 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
         else estado.inventario.push({ item_id: prev, cantidad: 1 });
       }
       quitar(id);
-      estado.mascota = { id: nuevoId(), especie, rareza, viva: true, revive_en: null, comida: 3, hambrienta: false, ayudas_restantes_nivel: { comun: 1, rara: 2, legendaria: 3 }[rareza] };
+      const evos = (estado.evoluciones_mascotas ??= {});
+      if (estado.mascota) {
+        const m = estado.mascota;
+        evos[`mascota_${m.especie}`] = { xp: m.xp ?? 0, etapa: m.etapa ?? 1, xp_siguiente: m.xp_siguiente ?? 60 };
+      }
+      const ev = evos[id] ?? { xp: 0, etapa: 1 as const, xp_siguiente: 60 };
+      evos[id] = ev;
+      const cupo = { comun: 1, rara: 2, legendaria: 3 }[rareza] + (ev.etapa === 3 ? 1 : 0);
+      estado.mascota = { id: nuevoId(), especie, rareza, viva: true, revive_en: null, comida: 3, hambrienta: false, ayudas_restantes_nivel: cupo,
+        xp: ev.xp, etapa: ev.etapa, xp_siguiente: ev.xp_siguiente, racha_sin_ayuda: 0 };
       return clonar(estado);
     },
     async elegirPaleta(pid) {
       if (!estado.paletas_desbloqueadas.includes(pid)) throw new ErrorApi(409, "Esa paleta aún está bloqueada.");
       estado.paleta_activa = pid;
+      return clonar(estado);
+    },
+    // ---- v0.3 (stubs mínimos; cada función los afina) ----
+    async pausar(iid) {
+      // Congela el reloj de la pregunta en curso; `iniciarNivel` de ese nivel la retoma.
+      for (const ec of juego03.enCurso.values()) {
+        if (ec.iid !== String(iid) || ec.pausada) continue;
+        ec.consumidoMs += Math.max(0, ahora() - ec.relojDesde);
+        ec.pausada = true;
+      }
+    },
+    async equipar(itemId) {
+      const eq = (estado.equipo ??= { arma: null, armadura: null, ropa: null });
+      const ranura = itemId.startsWith("arma_") ? "arma" : itemId.startsWith("armadura_") ? "armadura" : itemId.startsWith("ropa_") ? "ropa" : null;
+      if (!ranura) throw new ErrorApi(409, "Ese artículo no se equipa.");
+      if (!estado.inventario.some((i) => i.item_id === itemId && i.cantidad > 0)) throw new ErrorApi(409, "No tienes ese artículo.");
+      eq[ranura] = itemId;
+      return clonar(estado);
+    },
+    async desequipar(ranura) {
+      const eq = (estado.equipo ??= { arma: null, armadura: null, ropa: null });
+      eq[ranura] = null;
+      return clonar(estado);
+    },
+    async guardarAjustesJuego(e) {
+      estado.minimo_aprobar = Math.max(0, Math.min(100, Math.round(e.minimo_aprobar)));
       return clonar(estado);
     },
   };

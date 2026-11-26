@@ -10,20 +10,27 @@ from __future__ import annotations
 
 import random
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.game import evolucion_mascota as evo
 from app.game import experiencia as xp
 from app.game import mascota as mc
 from app.game import paletas as pal
 from app.game import recompensas as rc
 from app.game.correccion import Correccion, corregir
 from app.game.economia import precio
-from app.game.seleccion import Leitner, MotorRepaso, elegir_preguntas, motor_para
+from app.game.seleccion import (
+    Leitner,
+    MotorRepaso,
+    elegir_preguntas,
+    elegir_reintento,
+    motor_para,
+)
 from app.game.tiempo import tiempo_limite
 from app.game.tipos import TIPOS_ABIERTOS, AccionInvalida, Pregunta
 from app.keys import service as keys
@@ -104,6 +111,11 @@ def _motor(nombre: str) -> MotorRepaso:
         return Leitner()  # FSRS pendiente: se usa Leitner (misma interfaz)
 
 
+def _aprobado_de(it: IntentoNivel) -> bool | None:
+    """Si ese intento terminado alcanzó el mínimo (None en intentos anteriores a v0.3)."""
+    return it.preguntas[0].get("aprobado") if it.preguntas else None
+
+
 class Juego:
     def __init__(
         self,
@@ -154,6 +166,7 @@ class Juego:
         self.mascotas: list[str] = list(
             dict.fromkeys(rc.id_mascota_vigente(m) for m in (fila.mascotas or []))
         )
+        self.extras = serial.extras_desde_json(fila.extras)
         self.guardar()
 
     def guardar(self) -> None:
@@ -163,6 +176,7 @@ class Juego:
         f.cofres = serial.cofres_a_json(self.cofres)
         f.inventario = {k: v for k, v in self.inventario.items() if v > 0}
         f.mascotas = list(self.mascotas)
+        f.extras = serial.extras_a_json(self.extras)
         self.db.commit()
 
     def vista_estado(self) -> dict[str, Any]:
@@ -179,13 +193,43 @@ class Juego:
             "vidas": self.vidas.vidas,
             "mascota": self._vista_mascota(),
             "inventario": self._vista_inventario(),
+            "minimo_aprobar": self.extras.minimo_aprobar,
+            "equipo": {
+                r: (ids.publico(i) if i else None) for r, i in self.extras.equipo.items()
+            },
+            "evoluciones_mascotas": {
+                ids.publico(m): self._vista_evolucion(m) for m in self.mascotas
+            },
         }
 
+    def _evolucion(self, mascota_id: str) -> evo.EvolucionMascota:
+        return self.extras.evoluciones.get(mascota_id, evo.EvolucionMascota())
+
+    def _vista_evolucion(self, mascota_id: str) -> dict[str, Any]:
+        x = self._evolucion(mascota_id).xp
+        return {"xp": x, "etapa": evo.etapa(x), "xp_siguiente": evo.xp_siguiente(x)}
+
+    def _etapa_equipada(self) -> int:
+        m = self.vidas.mascota
+        return evo.etapa(self._evolucion(m.id).xp) if m else 1
+
     def _vista_mascota(self) -> dict[str, Any] | None:
-        v = mc.vista_mascota(self.vidas, self.ahora)
+        v = mc.vista_mascota(self.vidas, self.ahora, self._etapa_equipada())
         if v is not None:
+            ev = self._evolucion(v["id"])
+            v.update(self._vista_evolucion(v["id"]), racha_sin_ayuda=ev.racha_sin_ayuda)
             v["id"] = ids.publico(v["id"])
         return v
+
+    def _sumar_xp_mascota(self, ganada: int, ev: evo.EvolucionMascota) -> dict[str, Any] | None:
+        """Guarda la evolución nueva de la mascota equipada y devuelve el `mascota_evento`."""
+        m = self.vidas.mascota
+        if m is None:
+            return None
+        antes = evo.etapa(self._evolucion(m.id).xp)
+        self.extras.evoluciones[m.id] = ev
+        despues = evo.etapa(ev.xp)
+        return {"xp_ganada": ganada, "evoluciono": despues > antes, "etapa": despues}
 
     def _vista_inventario(self) -> list[dict[str, Any]]:
         """Consumibles con su cantidad y las mascotas poseídas (cantidad 1)."""
@@ -203,13 +247,51 @@ class Juego:
         self.guardar()
 
     def _dar_item(self, item_id: str) -> None:
-        """Mascotas van a la colección (sin duplicados); el resto al inventario."""
+        """Mascotas van a la colección (sin duplicados); los equipables al inventario con
+        cantidad 1 (se poseen una vez); los consumibles suman."""
         d = rc.ITEMS[item_id]
         if d.clase is rc.ClaseItem.MASCOTA:
             if item_id not in self.mascotas:
                 self.mascotas.append(item_id)
+        elif rc.es_unico(item_id):
+            self.inventario[item_id] = 1
         else:
             self.inventario[item_id] = self.inventario.get(item_id, 0) + 1
+
+    def _posee(self, item_id: str) -> bool:
+        if rc.ITEMS[item_id].clase is rc.ClaseItem.MASCOTA:
+            return item_id in self.mascotas
+        return self.inventario.get(item_id, 0) > 0
+
+    def _unicos_poseidos(self) -> frozenset[str]:
+        """Para `excluir` en cofres y drops: no repetir mascotas ni equipables ya poseídos."""
+        return frozenset(self.mascotas) | frozenset(
+            k for k, v in self.inventario.items() if v > 0 and rc.es_unico(k)
+        )
+
+    # ------------------------------------------------------------ equipo y ajustes
+
+    def equipar_item(self, item_publico: str) -> None:
+        item_id = ids.interno(item_publico)
+        ranura = rc.ranura_de(item_id) if item_id else None
+        if item_id is None or ranura is None:
+            raise AccionInvalida("Eso no se puede equipar.")
+        if not self._posee(item_id):
+            raise AccionInvalida("No tienes ese artículo.")
+        self.extras.equipo[ranura] = item_id
+        self.guardar()
+
+    def quitar_equipo(self, ranura: str) -> None:
+        if ranura not in serial.RANURAS:
+            raise AccionInvalida("Esa ranura no existe.")
+        self.extras.equipo[ranura] = None
+        self.guardar()
+
+    def ajustar(self, *, minimo_aprobar: int) -> None:
+        if not 0 <= minimo_aprobar <= 100:
+            raise AccionInvalida("El mínimo para aprobar va de 0 a 100.")
+        self.extras.minimo_aprobar = int(minimo_aprobar)
+        self.guardar()
 
     # ------------------------------------------------------------ camino
 
@@ -299,6 +381,35 @@ class Juego:
         )
         return {t.pregunta_id: t for t in filas}
 
+    @staticmethod
+    def _jugable(pf: PreguntaFuente, t_s: int, nivel: NivelInfo) -> dict[str, Any]:
+        p = pf.pregunta
+        return {
+            "id": p.id,
+            "tipo": str(p.tipo),
+            "enunciado": p.enunciado,
+            "opciones": list(p.opciones) if p.opciones else None,
+            "dificultad": p.dificultad,
+            "tiempo_s": t_s,
+            "es_calentamiento": nivel.es_calentamiento,
+            # Solo en abiertas, para autoevaluarse; nunca la respuesta de las demás.
+            **({"explicacion": pf.explicacion} if p.tipo in TIPOS_ABIERTOS else {}),
+        }
+
+    def _intentos_nivel(self, nivel_id: str, estado: str) -> list[IntentoNivel]:
+        """Intentos del usuario en ese nivel con ese estado, del más reciente al más viejo."""
+        return list(
+            self.db.scalars(
+                select(IntentoNivel)
+                .where(
+                    IntentoNivel.usuario_id == self.usuario.id,
+                    IntentoNivel.nivel_id == nivel_id,
+                    IntentoNivel.estado == estado,
+                )
+                .order_by(IntentoNivel.created_at.desc(), IntentoNivel.reloj_desde.desc())
+            )
+        )
+
     def iniciar(self, nivel_id: str) -> dict[str, Any]:
         camino = self.fuente.curso_de_nivel(self.db, self.usuario.id, nivel_id)
         if camino is None:
@@ -307,14 +418,26 @@ class Juego:
         estado_nivel = self._estados_niveles(camino)[nivel_id]
         if estado_nivel == "bloqueado":
             raise AccionInvalida("Ese nivel aún está bloqueado.")
+        en_curso = self._intentos_nivel(nivel_id, "en_curso")
+        if en_curso:  # mejora 2: se retoma la partida pausada (o interrumpida) de este nivel
+            return self._retomar(en_curso[0], camino, nivel)
         tarjetas = self._tarjetas(camino.id)
         vistas = {pid: serial.utc(t.vista_en) for pid, t in tarjetas.items()}
         info_final: dict[str, Any] | None = None
         furia: set[str] = set()
+        reintento = False
         if nivel.es_final:
             banco, elegidas, info_final, furia = self._seleccion_final(camino, nivel, vistas)
         else:
-            banco, elegidas = self._seleccion_leccion(camino, nivel_id, tarjetas, vistas)
+            previo = None
+            if estado_nivel != "completado":
+                terminados = self._intentos_nivel(nivel_id, "terminado")
+                previo = terminados[0] if terminados else None
+            if previo is not None and _aprobado_de(previo) is False:
+                reintento = True
+                banco, elegidas = self._seleccion_reintento(camino, nivel_id, previo, vistas)
+            else:
+                banco, elegidas = self._seleccion_leccion(camino, nivel_id, tarjetas, vistas)
         self._abandonar_en_curso()
         requeridas = info_final["requeridas"] if info_final else None
         entradas, jugables = [], []
@@ -338,19 +461,7 @@ class Juego:
             if requeridas is not None:
                 entrada["requeridas"] = requeridas
             entradas.append(entrada)
-            jugables.append(
-                {
-                    "id": pid,
-                    "tipo": str(p.tipo),
-                    "enunciado": p.enunciado,
-                    "opciones": list(p.opciones) if p.opciones else None,
-                    "dificultad": p.dificultad,
-                    "tiempo_s": t_s,
-                    "es_calentamiento": nivel.es_calentamiento,
-                    # Solo en abiertas, para autoevaluarse; nunca la respuesta de las demás.
-                    **({"explicacion": pf.explicacion} if p.tipo in TIPOS_ABIERTOS else {}),
-                }
-            )
+            jugables.append(self._jugable(pf, t_s, nivel))
             fila = tarjetas.get(pid)
             if fila is None:
                 fila = TarjetaRepaso(
@@ -364,6 +475,8 @@ class Juego:
                 tarjetas[pid] = fila
             else:
                 fila.vista_en = self.ahora
+        if reintento and entradas:
+            entradas[0]["reintento"] = True
 
         intento = IntentoNivel(
             usuario_id=self.usuario.id,
@@ -383,8 +496,94 @@ class Juego:
         self.vidas = mc.iniciar_nivel(self.vidas, self.ahora, es_final=nivel.es_final)
         self.guardar()
         salida: dict[str, Any] = {"intento_id": intento.id, "preguntas": jugables}
+        if reintento:
+            salida["reintento"] = True
         if info_final is not None:
             salida["final"] = {**info_final, **final.progreso(entradas, info_final["requeridas"])}
+        return salida
+
+    # ------------------------------------------------------------ pausa (mejora 2)
+
+    @staticmethod
+    def _idx_en_curso(it: IntentoNivel) -> int | None:
+        return next((i for i, e in enumerate(it.preguntas) if not e["respondida"]), None)
+
+    def pausar(self, intento_id: str) -> None:
+        """Congela el reloj de la pregunta en curso (se guarda `pausada_en` en su entrada)."""
+        it = self._intento(intento_id)
+        i = self._idx_en_curso(it)
+        if i is None:
+            return
+        e = dict(it.preguntas[i])
+        if e.get("pausada_en"):
+            return  # ya estaba pausada: idempotente
+        e["pausada_en"] = self.ahora.isoformat()
+        self._poner_entrada(it, i, e)
+        self.db.commit()
+
+    def _reanudar_reloj(self, it: IntentoNivel) -> None:
+        """Si la partida está pausada, mueve `reloj_desde` para que el tiempo pausado no cuente."""
+        for i, e in enumerate(it.preguntas):
+            if e.get("pausada_en"):
+                pausada = serial.utc(datetime.fromisoformat(e["pausada_en"]))
+                consumido = max(pausada - serial.utc(it.reloj_desde), timedelta(0))
+                it.reloj_desde = self.ahora - consumido
+                e = dict(e)
+                del e["pausada_en"]
+                self._poner_entrada(it, i, e)
+
+    def _retomar(
+        self, it: IntentoNivel, camino: CaminoCurso, nivel: NivelInfo
+    ) -> dict[str, Any]:
+        self._reanudar_reloj(it)
+        cache: dict[str, dict[str, PreguntaFuente]] = {}
+        jugables, respondidas = [], []
+        for e in it.preguntas:
+            nid = e["nivel_id"]
+            if nid not in cache:
+                cache[nid] = {
+                    pf.pregunta.id: pf
+                    for pf in self.fuente.preguntas(self.db, self.usuario.id, nid)
+                }
+            pf = cache[nid].get(e["pregunta_id"])
+            if pf is None:  # pragma: no cover - pregunta borrada a mitad de partida
+                continue
+            jugables.append(self._jugable(pf, int(e["tiempo_s"]), nivel))
+            if e["respondida"]:
+                respondidas.append({
+                    "pregunta_id": e["pregunta_id"],
+                    "correcta": bool(e["correcta"]),
+                    "xp_ganada": int(e.get("xp_ganada", xp.xp_respuesta(bool(e["correcta"])))),
+                })
+        restante = 0
+        i = self._idx_en_curso(it)
+        if i is not None:
+            limite = it.preguntas[i]["tiempo_s"] + (it.segundos_extra or 0)
+            transcurrido = (self.ahora - serial.utc(it.reloj_desde)).total_seconds()
+            restante = max(0, int(limite - transcurrido))
+        self.guardar()
+        salida: dict[str, Any] = {
+            "intento_id": it.id,
+            "preguntas": jugables,
+            "reanudado": True,
+            "progreso": {
+                "respondidas": respondidas,
+                "restante_s": restante,
+                "xp_ganada": it.xp_ganada or 0,
+            },
+        }
+        if it.preguntas and it.preguntas[0].get("reintento"):
+            salida["reintento"] = True
+        if it.es_final:
+            n = len(it.preguntas)
+            req = int(it.preguntas[0].get("requeridas", n)) if n else 0
+            salida["final"] = {
+                "g": camino.final_g,
+                "n_configurado": camino.final_n,
+                "requeridas": req,
+                "encuentros": final.plan_encuentros(n),
+                **final.progreso(list(it.preguntas), req),
+            }
         return salida
 
     def _abandonar_en_curso(self) -> None:
@@ -433,6 +632,46 @@ class Juego:
         vencidas = [t.pregunta_id for t in vencidas_filas if t.pregunta_id in banco]
         n = min(PREGUNTAS_POR_NIVEL, len(propias))
         return banco, elegir_preguntas(list(banco), n, self.rng, vistas=vistas, vencidas=vencidas)
+
+    def _seleccion_reintento(
+        self,
+        camino: CaminoCurso,
+        nivel_id: str,
+        previo: IntentoNivel,
+        vistas: dict[str, datetime],
+    ) -> tuple[dict[str, tuple[str, PreguntaFuente]], list[str]]:
+        """Mejora 6: tras no aprobar, preguntas distintas de la misma dificultad (propias no
+        servidas → de otros niveles de la sección → repetidas solo como último recurso)."""
+        propias = self.fuente.preguntas(self.db, self.usuario.id, nivel_id)
+        if not propias:
+            raise AccionInvalida("Este nivel no tiene preguntas.")
+        banco: dict[str, tuple[str, PreguntaFuente]] = {
+            pf.pregunta.id: (nivel_id, pf) for pf in propias
+        }
+        fallidas = [str(e["pregunta_id"]) for e in previo.preguntas]
+        seccion = next(s for s, n in camino.niveles() if n.id == nivel_id)
+        otras: dict[str, tuple[str, PreguntaFuente]] = {}
+        for n in sorted(seccion.niveles, key=lambda n: n.orden):
+            if n.id == nivel_id or n.es_final:
+                continue
+            for pf in self.fuente.preguntas(self.db, self.usuario.id, n.id):
+                otras.setdefault(pf.pregunta.id, (n.id, pf))
+        todas = {**otras, **banco}
+        dificultades = {todas[f][1].pregunta.dificultad for f in fallidas if f in todas}
+        alternas = [
+            pid for pid, (_, pf) in otras.items()
+            if pid not in banco and pf.pregunta.dificultad in dificultades
+        ]
+        for pid in alternas:
+            banco[pid] = otras[pid]
+        for f in fallidas:  # repaso servido de otro nivel: también es candidato de último recurso
+            if f not in banco and f in todas:
+                banco[f] = todas[f]
+        n = min(PREGUNTAS_POR_NIVEL, len(propias))
+        elegidas = elegir_reintento(
+            [pf.pregunta.id for pf in propias], alternas, fallidas, n, self.rng, vistas=vistas
+        )
+        return banco, [pid for pid in elegidas if pid in banco]
 
     def _seleccion_final(
         self, camino: CaminoCurso, nivel: NivelInfo, vistas: dict[str, datetime]
@@ -510,6 +749,8 @@ class Juego:
         self, intento_id: str, pregunta_id: str, respuesta: Any, tiempo_ms: int
     ) -> dict[str, Any]:
         it = self._intento(intento_id)
+        # Responder sin reanudar: el tiempo pausado no cuenta (reanuda implícitamente).
+        self._reanudar_reloj(it)
         i, e = self._entrada(it, pregunta_id)
         if e["respondida"]:
             raise AccionInvalida("Ya respondiste esa pregunta.")
@@ -536,10 +777,23 @@ class Juego:
             correcta = corregir(p, respuesta) is Correccion.CORRECTA
         correcta = correcta and not timeout
 
-        if not it.es_final:  # el nivel final no usa vidas de mascota (Q106)
+        mascota_evento = None
+        if not it.es_final:  # el nivel final no usa vidas de mascota (Q106) ni da XP de mascota
+            viva = mc.esta_viva(self.vidas, self.ahora)
+            vidas_antes = self.vidas.vidas
             self.vidas = mc.registrar_respuesta(
                 self.vidas, correcta, self.ahora, calentamiento=it.calentamiento
             )
+            perdio_vida = self.vidas.vidas < vidas_antes
+            e["vida_perdida"] = perdio_vida
+            if viva and self.vidas.mascota is not None:
+                ev, xp_mascota = evo.registrar_respuesta(
+                    self._evolucion(self.vidas.mascota.id),
+                    correcta=correcta,
+                    uso_ayuda=bool(e.get("ayuda_pedida")),
+                    perdio_vida=perdio_vida,
+                )
+                mascota_evento = self._sumar_xp_mascota(xp_mascota, ev)
         ganada = xp.xp_respuesta(correcta)
         self.progreso = xp.sumar_xp(self.progreso, it.tema, ganada, self.ahora)
         camino = self.fuente.curso_de_nivel(self.db, self.usuario.id, it.nivel_id)
@@ -547,7 +801,7 @@ class Juego:
             it.curso_id, camino.repaso if camino else "leitner", p.id, correcta
         )
 
-        e.update(respondida=True, correcta=correcta, timeout=timeout)
+        e.update(respondida=True, correcta=correcta, timeout=timeout, xp_ganada=ganada)
         self._poner_entrada(it, i, e)
         it.reloj_desde = self.ahora
         it.segundos_extra = 0
@@ -560,6 +814,7 @@ class Juego:
             "vidas": self.vidas.vidas,
             "mascota": self._vista_mascota(),
             "xp_ganada": ganada,
+            "mascota_evento": mascota_evento,
         }
         if it.es_final:
             salida["final"] = self._progreso_final(it)
@@ -606,12 +861,15 @@ class Juego:
         it = self._intento(intento_id)
         if it.es_final:
             raise AccionInvalida("El nivel final es un examen: no hay ayudas.")
+        self._reanudar_reloj(it)
         i, e = self._entrada(it, pregunta_id)
         if e["respondida"]:
             raise AccionInvalida("Esa pregunta ya fue respondida.")
         p = self._pregunta(e).pregunta
         ya = frozenset(int(x) for x in e["ayudas_dadas"])
-        nuevas_vidas, ayuda = mc.usar_ayuda(self.vidas, p, self.rng, self.ahora, ya_dadas=ya)
+        nuevas_vidas, ayuda = mc.usar_ayuda(
+            self.vidas, p, self.rng, self.ahora, ya_dadas=ya, etapa=self._etapa_equipada()
+        )
         if ayuda["tipo"] == "pista_ia":
             tipo, datos = "pista", self._pista_ia(p, ayuda.get("pista_escrita"))
         else:
@@ -619,7 +877,9 @@ class Juego:
             marca = ayuda.get("eliminar_opcion", ayuda.get("posicion"))
             if marca is not None:
                 e["ayudas_dadas"] = [*e["ayudas_dadas"], int(marca)]
-                self._poner_entrada(it, i, e)
+        e["ayuda_pedida"] = True  # corta la racha de la mascota en esta pregunta
+        e["ayudas_pedidas"] = int(e.get("ayudas_pedidas", 0)) + 1
+        self._poner_entrada(it, i, e)
         self.vidas = nuevas_vidas
         self.guardar()
         return {"tipo_ayuda": tipo, "datos": datos}
@@ -632,21 +892,33 @@ class Juego:
             return self._terminar_final(it)
         entradas = [dict(e) for e in it.preguntas]
         for e in entradas:
+            e.pop("pausada_en", None)
             if not e["respondida"]:  # sin responder = timeout
                 e.update(respondida=True, correcta=False, timeout=True)
+                antes = self.vidas.vidas
                 self.vidas = mc.registrar_respuesta(
                     self.vidas, False, self.ahora, calentamiento=it.calentamiento
                 )
-        it.preguntas = entradas
+                e["vida_perdida"] = self.vidas.vidas < antes
         hubo_timeout = any(e["timeout"] for e in entradas)
         perfecto = all(e["correcta"] for e in entradas)
+        aciertos = sum(bool(e["correcta"]) for e in entradas)
+        porcentaje = aciertos * 100 // len(entradas) if entradas else 0
+        # Mejora 6: el mínimo no aplica a los calentamientos (siempre se pasan).
+        minimo = 0 if it.calentamiento else self.extras.minimo_aprobar
+        aprobado = porcentaje >= minimo
+        if entradas:
+            entradas[0]["aprobado"] = aprobado
+        it.preguntas = entradas
 
         camino = self.fuente.curso_de_nivel(self.db, self.usuario.id, it.nivel_id)
         if camino is None:
             raise NoEncontrado("No encontramos ese nivel.")
         repetido = it.repetido or it.nivel_id in self._completados(camino.id)
 
-        if not repetido:
+        if not aprobado:
+            ganada = 0  # solo cuenta la XP de las respuestas
+        elif not repetido:
             self.progreso, ganada = xp.completar_nivel(
                 self.progreso, it.tema, self.ahora, perfecto=perfecto, es_jefe=it.es_jefe
             )
@@ -657,8 +929,13 @@ class Juego:
         else:
             ganada = 0
 
+        # No aprobado: monedas de nivel repetido, sin ítem ni avance del contador de cofres.
         self.cofres, drop = rc.drop_nivel(
-            self.cofres, self.rng, repetido=repetido, es_final=it.es_final
+            self.cofres,
+            self.rng,
+            repetido=repetido or not aprobado,
+            es_final=it.es_final,
+            excluir=self._unicos_poseidos(),
         )
         self.fila.monedas += drop.monedas
         if drop.item:
@@ -676,7 +953,7 @@ class Juego:
             cofre = {"id": fila_cofre.id, "tipo": str(drop.cofre)}
 
         completa_seccion = False
-        if not repetido:
+        if aprobado and not repetido:
             self.db.add(
                 NivelCompletado(
                     usuario_id=self.usuario.id,
@@ -688,10 +965,26 @@ class Juego:
             hechos = self._completados(camino.id) | {it.nivel_id}
             seccion = next(s for s, n in camino.niveles() if n.id == it.nivel_id)
             completa_seccion = all(n.id in hechos for n in seccion.niveles)
-        self.vidas = mc.completar_nivel(
-            self.vidas, self.ahora, sin_timeouts=not hubo_timeout, completa_seccion=completa_seccion
-        )
+        if aprobado:
+            self.vidas = mc.completar_nivel(
+                self.vidas,
+                self.ahora,
+                sin_timeouts=not hubo_timeout,
+                completa_seccion=completa_seccion,
+            )
         self.vidas = replace(self.vidas, nivel_sin_ayudas=False)
+
+        # Mejora 10: bonus de mascota por nivel sin ayudas y/o sin perder vidas.
+        mascota_evento = None
+        if self.vidas.mascota is not None:
+            bonus = evo.bonus_nivel(
+                ayudas_usadas=sum(int(e.get("ayudas_pedidas", 0)) for e in entradas),
+                vidas_perdidas=sum(bool(e.get("vida_perdida")) for e in entradas),
+                aprobado=aprobado,
+            )
+            if bonus:
+                ev = self._evolucion(self.vidas.mascota.id)
+                mascota_evento = self._sumar_xp_mascota(bonus, replace(ev, xp=ev.xp + bonus))
 
         it.estado = "terminado"
         it.xp_ganada = (it.xp_ganada or 0) + ganada
@@ -703,6 +996,10 @@ class Juego:
             "cofre": cofre,
             "perfecto": perfecto,
             "vidas": self.vidas.vidas,
+            "aprobado": aprobado,
+            "porcentaje": porcentaje,
+            "minimo": minimo,
+            "mascota_evento": mascota_evento,
         }
 
     def _terminar_final(self, it: IntentoNivel) -> dict[str, Any]:
@@ -726,7 +1023,11 @@ class Juego:
                 self.progreso, ganada = xp.registrar_dia_jugado(self.progreso, self.ahora)
                 self.progreso = xp.sumar_xp(self.progreso, it.tema, ganada, self.ahora)
             self.cofres, drop = rc.drop_nivel(
-                self.cofres, self.rng, repetido=repetido, es_final=True
+                self.cofres,
+                self.rng,
+                repetido=repetido,
+                es_final=True,
+                excluir=self._unicos_poseidos(),
             )
             monedas, drop_item = drop.monedas, drop.item
             self.fila.monedas += monedas
@@ -758,6 +1059,12 @@ class Juego:
                         self.vidas, self.ahora, sin_timeouts=True, completa_seccion=True
                     )
         self.vidas = replace(self.vidas, nivel_sin_ayudas=False)
+        entradas = [dict(e) for e in it.preguntas]
+        for e in entradas:
+            e.pop("pausada_en", None)
+        if entradas:
+            entradas[0]["aprobado"] = aprobado
+        it.preguntas = entradas
         it.estado = "terminado"
         it.xp_ganada = (it.xp_ganada or 0) + ganada
         self.guardar()
@@ -777,7 +1084,9 @@ class Juego:
             raise NoEncontrado("No encontramos ese cofre.")
         if c.abierto:
             raise AccionInvalida("Ese cofre ya está abierto.")
-        self.cofres, contenido = rc.abrir_cofre(self.cofres, c.tipo, self.rng)
+        self.cofres, contenido = rc.abrir_cofre(
+            self.cofres, c.tipo, self.rng, excluir=self._unicos_poseidos()
+        )
         c.abierto = True
         self.fila.monedas += contenido.monedas
         for item in contenido.items:
@@ -789,13 +1098,18 @@ class Juego:
 
     @staticmethod
     def tienda() -> list[dict[str, Any]]:
-        return [{**_item_vista(i.id), "precio": precio(i.id)} for i in rc.CATALOGO]
+        return [
+            {**_item_vista(i.id), "precio": precio(i.id), "clase": str(i.clase)}
+            for i in rc.CATALOGO
+        ]
 
     def comprar(self, item_publico: str) -> dict[str, Any]:
         item_id = _interno(item_publico)
         d = rc.ITEMS[item_id]
         if d.clase is rc.ClaseItem.MASCOTA and item_id in self.mascotas:
             raise AccionInvalida("Ya tienes esa mascota.")
+        if rc.es_unico(item_id) and self._posee(item_id):
+            raise AccionInvalida("Ya tienes ese artículo.")
         costo = precio(item_id)
         if self.fila.monedas < costo:
             raise AccionInvalida("No te alcanzan las monedas.")
@@ -812,6 +1126,8 @@ class Juego:
         d = rc.ITEMS[item_id]
         if d.clase is rc.ClaseItem.MASCOTA:
             raise AccionInvalida("Las mascotas se equipan, no se usan.")
+        if rc.ranura_de(item_id) is not None:
+            raise AccionInvalida("Las armas, armaduras y ropa se equipan, no se usan.")
         if self.inventario.get(item_id, 0) <= 0:
             raise AccionInvalida("No tienes ese artículo.")
         if intento_id and self._intento(intento_id).es_final:

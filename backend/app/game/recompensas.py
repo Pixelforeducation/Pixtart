@@ -10,6 +10,12 @@
 - Pity: el cofre nº 30 seguido sin legendario trae legendario garantizado.
 - Ganar el nivel final: cofre legendario extra (no cuenta en el ciclo de 4 normales).
 
+- Sin duplicados dentro de un cofre (mejora 7) y nunca un ítem único (mascota o equipable) que
+  ya se posee (`excluir`). Si la rareza elegida se queda sin candidatos se prueba otra (ver
+  `ALTERNATIVAS`); si no queda ninguna, ese slot se paga en monedas (`COMPENSACION`). Las
+  probabilidades por rareza no cambian; dentro de una rareza el ítem sale uniforme.
+- Equipables (mejora 5): armas, armaduras y ropa. Se poseen una vez, como las mascotas.
+
 Probabilidades con pesos enteros sobre 10 000 y `rng.randrange` (rng inyectado).
 """
 
@@ -29,6 +35,13 @@ R = Rareza
 class ClaseItem(StrEnum):
     CONSUMIBLE = "consumible"
     MASCOTA = "mascota"
+    ARMA = "arma"
+    ARMADURA = "armadura"
+    ROPA = "ropa"
+
+
+#: Clases que se equipan en una ranura del héroe (la ranura se llama como la clase).
+EQUIPABLES = frozenset({ClaseItem.ARMA, ClaseItem.ARMADURA, ClaseItem.ROPA})
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +54,7 @@ class ItemDef:
 
 
 C, M = ClaseItem.CONSUMIBLE, ClaseItem.MASCOTA
+A, AR, RO = ClaseItem.ARMA, ClaseItem.ARMADURA, ClaseItem.ROPA
 
 CATALOGO: tuple[ItemDef, ...] = (
     ItemDef("botiquin", "Botiquín", R.COMUN),
@@ -57,6 +71,18 @@ CATALOGO: tuple[ItemDef, ...] = (
     ItemDef("mascota_zorro_brasas", "Brasa", R.LEGENDARIA, M, "ember-fox"),
     ItemDef("mascota_buho_cristal", "Cristal", R.LEGENDARIA, M, "crystal-owl"),
     ItemDef("mascota_nox", "Nox", R.LEGENDARIA, M, "onyx-dragon"),
+    ItemDef("arma_espada", "Espada", R.COMUN, A),
+    ItemDef("arma_arco", "Arco", R.COMUN, A),
+    ItemDef("arma_baculo", "Báculo", R.RARA, A),
+    ItemDef("arma_martillo", "Martillo", R.RARA, A),
+    ItemDef("arma_katana", "Katana", R.LEGENDARIA, A),
+    ItemDef("armadura_cuero", "Armadura de cuero", R.COMUN, AR),
+    ItemDef("armadura_malla", "Cota de malla", R.RARA, AR),
+    ItemDef("armadura_placas", "Armadura de placas", R.LEGENDARIA, AR),
+    ItemDef("ropa_tunica_verde", "Túnica verde", R.COMUN, RO),
+    ItemDef("ropa_capa_roja", "Capa roja", R.COMUN, RO),
+    ItemDef("ropa_traje_mago", "Traje de mago", R.RARA, RO),
+    ItemDef("ropa_manto_real", "Manto real", R.LEGENDARIA, RO),
 )
 ITEMS: dict[str, ItemDef] = {i.id: i for i in CATALOGO}
 
@@ -82,6 +108,20 @@ def id_mascota_vigente(item_id: str) -> str:
 
 def items_de_rareza(rareza: Rareza) -> tuple[ItemDef, ...]:
     return tuple(i for i in CATALOGO if i.rareza is rareza)
+
+
+def ranura_de(item_id: str) -> str | None:
+    """"arma" | "armadura" | "ropa" para un equipable (id interno = público); si no, None."""
+    d = ITEMS.get(item_id)
+    if d is None or d.clase not in EQUIPABLES:
+        return None
+    return str(d.clase)
+
+
+def es_unico(item_id: str) -> bool:
+    """Mascotas y equipables se poseen una sola vez; los consumibles se acumulan."""
+    d = ITEMS.get(id_mascota_vigente(item_id))
+    return d is not None and d.clase is not ClaseItem.CONSUMIBLE
 
 
 # ---------------------------------------------------------------- tablas
@@ -128,8 +168,29 @@ def elegir_ponderado(rng: random.Random, tabla: tuple[tuple[Rareza, int], ...]) 
     raise AssertionError("tabla vacía")  # pragma: no cover
 
 
-def item_aleatorio(rng: random.Random, rareza: Rareza) -> str:
-    return rng.choice(items_de_rareza(rareza)).id
+#: Rarezas a probar, en orden, cuando la elegida no tiene candidatos. Una rara o común nunca
+#: sube a legendaria (eso alteraría la tasa de legendarios y el pity).
+ALTERNATIVAS: dict[Rareza, tuple[Rareza, ...]] = {
+    R.COMUN: (R.COMUN, R.RARA),
+    R.RARA: (R.RARA, R.COMUN),
+    R.LEGENDARIA: (R.LEGENDARIA, R.RARA, R.COMUN),
+}
+#: Monedas que paga un slot sin ningún candidato posible, según la rareza que tocaba.
+COMPENSACION = {R.COMUN: 50, R.RARA: 150, R.LEGENDARIA: 500}
+
+
+def item_aleatorio(
+    rng: random.Random, rareza: Rareza, excluir: frozenset[str] | set[str] = frozenset()
+) -> str | None:
+    """Ítem uniforme de `rareza` (o de sus `ALTERNATIVAS`) que no esté en `excluir`.
+
+    Devuelve None si no queda ningún candidato. Sin exclusiones consume el rng igual que antes.
+    """
+    for r in ALTERNATIVAS[rareza]:
+        candidatos = [i for i in items_de_rareza(r) if i.id not in excluir]
+        if candidatos:
+            return rng.choice(candidatos).id
+    return None
 
 
 # ---------------------------------------------------------------- estado y resultados
@@ -167,14 +228,22 @@ def drop_nivel(
     *,
     repetido: bool = False,
     es_final: bool = False,
+    excluir: frozenset[str] = frozenset(),
 ) -> tuple[EstadoCofres, DropNivel]:
-    """Recompensa al completar un nivel. Decide aquí si toca cofre y de qué tipo."""
+    """Recompensa al completar un nivel. Decide aquí si toca cofre y de qué tipo.
+
+    `excluir`: ítems únicos que el jugador ya posee (no pueden salir). Si no queda ninguno de
+    esa rareza ni de sus alternativas, el ítem se paga en monedas (`COMPENSACION`).
+    """
     if repetido:
         return estado, DropNivel(monedas=rng.randint(*MONEDAS_REPETIDO))
     monedas = rng.randint(*MONEDAS_NIVEL)
     item = None
     if rng.randrange(ESCALA) < PROB_ITEM_NIVEL:
-        item = item_aleatorio(rng, elegir_ponderado(rng, RAREZA_ITEM_NIVEL))
+        rareza = elegir_ponderado(rng, RAREZA_ITEM_NIVEL)
+        item = item_aleatorio(rng, rareza, excluir)
+        if item is None:
+            monedas += COMPENSACION[rareza]
     if es_final:
         return estado, DropNivel(monedas, item, TipoCofre.LEGENDARIO)
     niveles = estado.niveles_desde_cofre + 1
@@ -198,20 +267,39 @@ def proximo_cofre(estado: EstadoCofres) -> TipoCofre:
 
 
 def abrir_cofre(
-    estado: EstadoCofres, tipo: TipoCofre | str, rng: random.Random
+    estado: EstadoCofres,
+    tipo: TipoCofre | str,
+    rng: random.Random,
+    *,
+    excluir: frozenset[str] = frozenset(),
 ) -> tuple[EstadoCofres, ContenidoCofre]:
     """Abre un cofre: monedas + 1 rara garantizada + slot variable (legendario por cofre).
 
     Pity: si ya van 29 cofres seguidos sin legendario, este (el 30) lo trae seguro.
+    Nunca repite un ítem dentro del cofre ni da un único de `excluir`; un slot sin candidatos
+    cae a otra rareza (`ALTERNATIVAS`) o, si no hay ninguno, suma `COMPENSACION` a las monedas.
+    Si tocaba legendario pero el jugador ya los tiene todos, el pity se reinicia igual.
     """
     regla = REGLAS_COFRE[TipoCofre(tipo)]
     monedas = rng.randint(*regla.monedas)
-    items = [item_aleatorio(rng, R.RARA)]
+    items: list[str] = []
+    vetados = set(excluir)
+
+    def slot(rareza: Rareza) -> None:
+        nonlocal monedas
+        item = item_aleatorio(rng, rareza, vetados)
+        if item is None:
+            monedas += COMPENSACION[rareza]
+        else:
+            items.append(item)
+            vetados.add(item)
+
+    slot(R.RARA)
     forzado = estado.cofres_sin_legendario >= PITY_COFRES - 1
     if forzado or rng.randrange(ESCALA) < regla.prob_legendario:
-        items.append(item_aleatorio(rng, R.LEGENDARIA))
+        slot(R.LEGENDARIA)
         sin_leg = 0
     else:
-        items.append(item_aleatorio(rng, elegir_ponderado(rng, regla.resto)))
+        slot(elegir_ponderado(rng, regla.resto))
         sin_leg = estado.cofres_sin_legendario + 1
     return replace(estado, cofres_sin_legendario=sin_leg), ContenidoCofre(monedas, tuple(items))

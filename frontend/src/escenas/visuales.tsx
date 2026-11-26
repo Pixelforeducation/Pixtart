@@ -2,9 +2,12 @@
  * Piezas visuales que usan las pantallas del marco (Inicio, Perfil, Tienda…).
  * Todas piden el sprite al contrato de arte y caen a un respaldo con el arte actual.
  */
-import { spriteHeroe, spriteIcono, spriteItem, spriteMascota } from "../arte";
+import type { Equipo, EtapaMascota } from "../api";
+import { existeSprite, spriteIcono, spriteItem, spriteMascota } from "../arte";
 import { Candado, Corazon, Engrane, IconoNav, Moneda } from "../components/Iconos";
 import { ItemIcono } from "../components/ItemIcono";
+import { esEquipable, HeroeEquipado } from "../components/juego/HeroeEquipado";
+import "../components/juego/heroe.css";
 import { Sprite as SpriteViejo, srcMascota } from "../components/Sprite";
 import { SpriteSeguro } from "./SpriteSeguro";
 
@@ -37,17 +40,56 @@ export function IconoUI({ id, tam = 24 }: { id: string; tam?: number }) {
   return <SpriteSeguro nombre={spriteIcono(id)} alt="" escala={Math.max(1, Math.round(tam / 32))} style={{ width: tam, height: tam }} respaldo={respaldo} />;
 }
 
-export function HeroeVisual({ tier, alt, className, anim = "idle" }: { tier: number; alt: string; className?: string; anim?: "idle" | "feliz" | "caminar" }) {
+/**
+ * Héroe del jugador: sprite del tier + cosméticos de evolución (bandana, pelo, hombreras, casco,
+ * capa/corona) y, si se pasa `equipo`, su ropa, armadura y arma.
+ */
+export function HeroeVisual({ tier, alt, className, anim = "idle", equipo, escala }: {
+  tier: number; alt: string; className?: string; anim?: "idle" | "feliz" | "caminar"; equipo?: Equipo | null; escala?: number;
+}) {
+  return <HeroeEquipado tier={tier} equipo={equipo} anim={anim} alt={alt} className={className} escala={escala} />;
+}
+
+/** Corona 7×5 y destello 3×3 para la forma final de la mascota. */
+const CORONA_MASCOTA = ["a.a.a.a", "abababa", "aaaaaaa", "acacaca", "aaaaaaa"];
+const COL_CORONA: Record<string, string> = { a: "#F2C230", b: "#FFF1A0", c: "#E04848" };
+function Pix({ filas, col, className }: { filas: string[]; col: Record<string, string>; className: string }) {
   return (
-    <SpriteSeguro nombre={spriteHeroe(tier)} anim={anim} alt={alt} className={className}
-      respaldo={<SpriteViejo src="/sprites/ogre-green.svg" alt={alt} className={className} />} />
+    <svg className={`pix ${className}`} viewBox={`0 0 ${filas[0].length} ${filas.length}`} shapeRendering="crispEdges" aria-hidden="true">
+      {filas.flatMap((f, y) => [...f].map((ch, x) => (col[ch] ? <rect key={`${x}-${y}`} x={x} y={y} width={1} height={1} fill={col[ch]} /> : null)))}
+    </svg>
+  );
+}
+const ESTRELLA = [".a.", "aba", ".a."];
+const COL_ESTRELLA: Record<string, string> = { a: "#FFE27A", b: "#FFFFFF" };
+
+/**
+ * Envuelve el dibujo de una mascota con su etapa de evolución: 2 = aura azul y color más intenso;
+ * 3 = más grande, aura dorada, corona y destellos. En la etapa 1 no añade nada.
+ */
+export function EvolucionMascota({ etapa, children }: { etapa?: EtapaMascota | number | null; children: JSX.Element }) {
+  const e = etapa === 2 || etapa === 3 ? etapa : 1;
+  if (e === 1) return children;
+  return (
+    <span className={`mascota-evo etapa-${e}`} data-etapa={e}>
+      {children}
+      {e === 3 && (
+        <>
+          <Pix filas={CORONA_MASCOTA} col={COL_CORONA} className="mascota-corona" />
+          <Pix filas={ESTRELLA} col={COL_ESTRELLA} className="mascota-estrella e1" />
+          <Pix filas={ESTRELLA} col={COL_ESTRELLA} className="mascota-estrella e2" />
+        </>
+      )}
+    </span>
   );
 }
 
-export function MascotaVisual({ especie, alt, className }: { especie: string; alt: string; className?: string }) {
+export function MascotaVisual({ especie, alt, className, etapa }: { especie: string; alt: string; className?: string; etapa?: EtapaMascota }) {
   return (
-    <SpriteSeguro nombre={spriteMascota(especie)} alt={alt} className={className}
-      respaldo={<SpriteViejo src={srcMascota(especie)} alt={alt} className={className} />} />
+    <EvolucionMascota etapa={etapa}>
+      <SpriteSeguro nombre={spriteMascota(especie)} alt={alt} className={className}
+        respaldo={<SpriteViejo src={srcMascota(especie)} alt={alt} className={className} />} />
+    </EvolucionMascota>
   );
 }
 
@@ -57,6 +99,8 @@ export function CofreVisual({ tipo = "normal", alt = "", className }: { tipo?: "
 }
 
 export function ItemVisual({ id }: { id: string }) {
+  // Armas, armaduras y ropa se dibujan inline (mismas capas que el héroe); también lo desconocido.
+  if (esEquipable(id) || !existeSprite(spriteItem(id))) return <ItemIcono id={id} />;
   return <SpriteSeguro nombre={spriteItem(id)} alt="" escala={2} respaldo={<ItemIcono id={id} />} />;
 }
 

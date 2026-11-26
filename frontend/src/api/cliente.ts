@@ -38,6 +38,14 @@ export interface Api {
   equiparMascota(mascotaId: Id): Promise<T.Estado>;
   /** NO está en CONTRATO v0: se supone `POST /juego/paleta {paleta_id}` → Estado. */
   elegirPaleta(paletaId: string): Promise<T.Estado>;
+  /** v0.3: `POST /juego/intentos/{id}/pausar` → 204. Congela el reloj (solo partidas individuales). */
+  pausar(intentoId: Id): Promise<void>;
+  /** v0.3: `POST /juego/equipo {item_id}` → Estado. Pone un arma/armadura/ropa poseída en su ranura. */
+  equipar(itemId: string): Promise<T.Estado>;
+  /** v0.3: `POST /juego/equipo/quitar {ranura}` → Estado. */
+  desequipar(ranura: T.Ranura): Promise<T.Estado>;
+  /** v0.3: `POST /juego/ajustes {minimo_aprobar}` → Estado. */
+  guardarAjustesJuego(e: { minimo_aprobar: number }): Promise<T.Estado>;
 }
 
 export class ErrorApi extends Error {
@@ -117,4 +125,8 @@ export const apiHttp: Api = {
   usarItem: (item_id) => pedir("POST", "/juego/items/usar", { item_id }),
   equiparMascota: (mascota_id) => pedir("POST", "/juego/mascotas/equipar", { mascota_id }),
   elegirPaleta: (paleta_id) => pedir("POST", "/juego/paleta", { paleta_id }),
+  pausar: (i) => pedir("POST", `/juego/intentos/${i}/pausar`),
+  equipar: (item_id) => pedir("POST", "/juego/equipo", { item_id }),
+  desequipar: (ranura) => pedir("POST", "/juego/equipo/quitar", { ranura }),
+  guardarAjustesJuego: (e) => pedir("POST", "/juego/ajustes", e),
 };

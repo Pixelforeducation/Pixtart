@@ -344,3 +344,15 @@ def test_siempre_se_puede_jugar_muerta():
         e = m.registrar_respuesta(e, False, T0 + timedelta(minutes=1))
         e = m.registrar_respuesta(e, True, T0 + timedelta(minutes=1))
     assert e.vidas == 0
+
+
+def test_etapa_3_suma_ayuda_en_restantes_y_vista():
+    e = m.iniciar_nivel(estado(mascota=COMUN, comida=5), T0)
+    assert m.ayudas_restantes(e, T0) == 1
+    assert m.ayudas_restantes(e, T0, etapa=3) == 2
+    assert m.vista_mascota(e, T0, etapa=3)["ayudas_restantes_nivel"] == 2
+    e, _ = m.usar_ayuda(e, MC, random.Random(0), T0, etapa=3)
+    e, _ = m.usar_ayuda(e, MC, random.Random(1), T0, etapa=3)
+    assert m.ayudas_restantes(e, T0, etapa=3) == 0
+    with pytest.raises(m.SinAyuda):
+        m.usar_ayuda(e, MC, random.Random(2), T0, etapa=3)

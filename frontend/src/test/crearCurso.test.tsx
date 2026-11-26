@@ -76,7 +76,7 @@ describe("CrearCurso", () => {
     const [archivos, config] = spy.mock.calls[0];
     expect(archivos.map((a) => a.name)).toEqual(["apuntes.pdf"]);
     expect(config).toMatchObject({ num_preguntas: 20, dificultad: 3, repaso: "fsrs", instrucciones: "Solo capítulo 2", tiempos_por_tipo: { proof: 900 } });
-    expect(config.tipos).toEqual(["multiple_choice", "true_false", "proof"]);
+    expect(config.tipos).toEqual(["multiple_choice", "true_false", "fill_text", "ordering", "proof"]);
   });
 
   it("agrega y quita varios PDFs, rechaza uno demasiado grande y envía todos", async () => {

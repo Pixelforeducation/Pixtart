@@ -1,5 +1,6 @@
 /** Pantalla de recompensas: conteo de XP y monedas, drop con brillo por rareza, cofre y confeti. */
 import { useEffect, useRef, useState } from "react";
+import type { Equipo } from "../../api";
 import { Link } from "react-router-dom";
 import type { CofreAbierto, FinIntento, Rareza } from "../../api";
 import { spriteHeroe, type FichaPersonaje } from "../../arte";
@@ -34,9 +35,13 @@ interface Props {
   rachaDias?: number;
   /** XP del tema antes del nivel (para animar la barra de evolución). null = no se muestra. */
   xpAntes?: number | null;
+  /** v0.3: vuelve a iniciar el mismo nivel (se ofrece si no se alcanzó el mínimo). */
+  onReintentar?: () => void;
+  equipo?: Equipo | null;
 }
 
-export function FinNivel({ fin, cofre, onAbrirCofre, onSiguiente, volver, error, bioma, anfitrion, tier, aciertos, total, mejorRacha = 0, rachaDias = 0, xpAntes = null }: Props) {
+export function FinNivel({ fin, cofre, onAbrirCofre, onSiguiente, volver, error, bioma, anfitrion, tier, aciertos, total, mejorRacha = 0, rachaDias = 0, xpAntes = null, onReintentar, equipo = null }: Props) {
+  const reprobado = fin.aprobado === false;
   const nEstrellas = estrellasNivel(aciertos, total, fin.perfecto);
   const [estrellasVistas, setEstrellasVistas] = useState(menosMovimiento() ? nEstrellas : 0);
   const [subio, setSubio] = useState<{ tier: number; antes: number } | null>(null);
@@ -52,6 +57,7 @@ export function FinNivel({ fin, cofre, onAbrirCofre, onSiguiente, volver, error,
     // Arriba del todo para ver caer las estrellas; el foco va al título sin mover la vista.
     try { window.scrollTo(0, 0); } catch { /* jsdom */ }
     titulo.current?.focus({ preventScroll: true });
+    if (reprobado) return; // sin celebración: no se pasó el nivel
     momentos.celebrar({ perfecto: fin.perfecto });
     const w = typeof window !== "undefined" ? window.innerWidth : 400;
     // Estrellas que caen una por una, cada una más aguda.
@@ -75,6 +81,43 @@ export function FinNivel({ fin, cofre, onAbrirCofre, onSiguiente, volver, error,
     return () => { clearTimeout(t1); clearTimeout(t2); tEstrellas.forEach(clearTimeout); };
   }, [fin]);
 
+  if (reprobado) {
+    const pct = fin.porcentaje ?? (total ? Math.round((100 * aciertos) / total) : 0);
+    const min = fin.minimo ?? 60;
+    return (
+      <Escena bioma={bioma} intensidad={0} className="jg-escena jg-fin">
+        <section className="jg-fin-panel jg-no-aprobado" aria-labelledby="fin-tit">
+          <h1 id="fin-tit" ref={titulo} tabIndex={-1}>No alcanzaste el mínimo</h1>
+          <p className="jg-fin-minimo">Lograste {pct}% de {min}% necesario ({aciertos} de {total} aciertos).</p>
+          <div className="jg-fin-minimo-barra" role="img" aria-label={`${pct}% de ${min}% necesario`}>
+            <span style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+            <i style={{ left: `${Math.max(0, Math.min(100, min))}%` }} />
+          </div>
+          <div className="jg-fin-elenco" aria-hidden="true">
+            <div className="jg-actor">
+              <span className="jg-bocadillo">¡Tú puedes! Inténtalo otra vez.</span>
+              <Personaje nombre={anfitrion.id} rol="anfitrion" anim="idle" escala={3} alt="" />
+            </div>
+            <div className="jg-actor">
+              <Personaje nombre={spriteHeroe(tier)} rol="heroe" anim="idle" escala={3} alt="" equipo={equipo} />
+            </div>
+          </div>
+          <p>El nivel no se completa todavía. Al reintentar verás preguntas nuevas de la misma dificultad.</p>
+          <div className="jg-chips jg-fin-chips">
+            {fin.xp_ganada > 0 && <span className="jg-chip jg-chip-xp">+{fin.xp_ganada} XP</span>}
+            {fin.monedas > 0 && <span className="jg-chip">+{fin.monedas} monedas</span>}
+          </div>
+          <p className="jg-fin-vidas"><Corazones vidas={fin.vidas} /></p>
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="jg-fin-acciones">
+            {onReintentar && <button className="boton jg-grande" onClick={onReintentar}>Reintentar nivel ↻</button>}
+            <Link to={volver} className="boton secundario">Volver al camino</Link>
+          </div>
+        </section>
+      </Escena>
+    );
+  }
+
   return (
     <Escena bioma={bioma} intensidad={menosMovimiento() ? 0 : 0.6} className="jg-escena jg-fin">
       <section className="jg-fin-panel" aria-labelledby="fin-tit">
@@ -93,7 +136,7 @@ export function FinNivel({ fin, cofre, onAbrirCofre, onSiguiente, volver, error,
             <Personaje nombre={anfitrion.id} rol="anfitrion" anim="feliz" escala={3} alt="" />
           </div>
           <div className="jg-actor jg-salta-loop jg-retraso">
-            <Personaje nombre={spriteHeroe(tier)} rol="heroe" anim="feliz" escala={3} alt="" />
+            <Personaje nombre={spriteHeroe(tier)} rol="heroe" anim="feliz" escala={3} alt="" equipo={equipo} />
           </div>
         </div>
 

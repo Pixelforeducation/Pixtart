@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { ErrorApi, type Estado } from "../api";
+import { ErrorApi, type Equipo, type Estado, type EtapaMascota, type Ranura } from "../api";
 import { useApi, useEstadoJuego } from "../contexto";
 import { Candado, Escudo } from "../components/Iconos";
 import { nombreItem } from "../components/ItemIcono";
-import { Mascota } from "../components/Mascota";
+import { BarraEvolucion, Mascota } from "../components/Mascota";
+import { esEquipable } from "../components/juego/HeroeEquipado";
 import { NOMBRES_TIER } from "../components/Sprite";
 import { Escena } from "../escenas";
 import { Contador, Llama } from "../escenas/hud";
@@ -12,10 +13,49 @@ import { sonar } from "../escenas/sonido";
 import { HeroeVisual, IconoUI, ItemVisual, MascotaVisual } from "../escenas/visuales";
 import { PALETAS, aplicarPaleta } from "../theme/paleta";
 import { mensajeError } from "../lib/validacion";
+import { VistaEquipo } from "./Tienda";
 
 const USABLES = new Set(["botiquin", "pocion_resurreccion", "comida", "escudo"]);
 const nombreTier = (t: number) => NOMBRES_TIER[Math.max(0, Math.min(5, t - 1))];
-const rarezaDe = (id: string) => (id.startsWith("mascota_") || id === "pocion_resurreccion" ? "rara" : "comun");
+const RAREZA_EQUIPABLE: Record<string, "comun" | "rara" | "legendaria"> = {
+  arma_baculo: "rara", arma_martillo: "rara", arma_katana: "legendaria",
+  armadura_malla: "rara", armadura_placas: "legendaria", ropa_traje_mago: "rara", ropa_manto_real: "legendaria",
+};
+const rarezaDe = (id: string) =>
+  RAREZA_EQUIPABLE[id] ?? (esEquipable(id) ? "comun" : id.startsWith("mascota_") || id === "pocion_resurreccion" ? "rara" : "comun");
+const ranuraDe = (id: string): Ranura | null =>
+  id.startsWith("armadura_") ? "armadura" : id.startsWith("arma_") ? "arma" : id.startsWith("ropa_") ? "ropa" : null;
+const SIN_EQUIPO: Equipo = { arma: null, armadura: null, ropa: null };
+
+/** Evolución de cada mascota poseída (la equipada usa sus datos en vivo de `estado.mascota`). */
+function EvolucionMascotas({ estado }: { estado: Estado }) {
+  const evo = { ...(estado.evoluciones_mascotas ?? {}) };
+  const puestaM = estado.mascota;
+  if (puestaM && puestaM.xp !== undefined) evo[`mascota_${puestaM.especie}`] = { xp: puestaM.xp, etapa: puestaM.etapa ?? 1, xp_siguiente: puestaM.xp_siguiente ?? null };
+  const ids = Object.keys(evo);
+  if (ids.length === 0) return null;
+  return (
+    <ul className="evo-mascotas" aria-label="Evolución de tus mascotas">
+      {ids.map((id) => {
+        const e = evo[id];
+        const especie = id.replace(/^mascota_/, "");
+        const etapa = (e.etapa ?? 1) as EtapaMascota;
+        const puesta = puestaM?.especie === especie;
+        return (
+          <li key={id} className="evo-mascota">
+            <span className="retrato"><MascotaVisual especie={especie} etapa={etapa} alt="" /></span>
+            <div className="datos">
+              <strong>{nombreItem(id).replace(/^Mascota: /, "")}</strong>
+              <span className="etapas" aria-hidden="true">{[1, 2, 3].map((n) => <span key={n} className={n <= etapa ? "on" : ""} />)}</span>
+              {puesta && <span className="equipado-chip" style={{ marginLeft: 8 }}>Contigo</span>}
+              <BarraEvolucion xp={e.xp} etapa={etapa} xpSiguiente={e.xp_siguiente} />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 /** Escalera de evolución: los 6 atuendos; los futuros, como silueta con candado. */
 function Evolucion({ tier }: { tier: number }) {
@@ -69,6 +109,7 @@ export function Perfil() {
   const xpMax = Math.max(1, ...Object.values(estado.xp_total_por_tema));
   const sigPaleta = [...PALETAS].sort((a, b) => a.xp_color_min - b.xp_color_min).find((p) => p.xp_color_min > estado.xp_color);
   const m = estado.mascota;
+  const equipo = estado.equipo ?? SIN_EQUIPO;
 
   return (
     <Escena bioma="perfil">
@@ -76,11 +117,16 @@ export function Perfil() {
       <section className="escenario-heroe aparece" aria-label="Personaje">
         <span className="foco" aria-hidden="true" />
         <div className="grupo">
-          <HeroeVisual tier={tierMax} alt={`Tu personaje con el atuendo ${nombreTier(tierMax)}`} className="personaje-grande" />
-          {m && <MascotaVisual especie={m.especie} alt="" className={`mascota-lado ${m.viva ? "" : "muerta"}`} />}
+          <HeroeVisual tier={tierMax} equipo={equipo} alt={`Tu personaje con el atuendo ${nombreTier(tierMax)}`} className="personaje-grande" />
+          {m && <MascotaVisual especie={m.especie} etapa={m.etapa} alt="" className={`mascota-lado ${m.viva ? "" : "muerta"}`} />}
         </div>
       </section>
       <p className="nombre-tier"><span className="cinta">{nombreTier(tierMax)} · tier {tierMax}</span></p>
+
+      <section className="panel oscuro" aria-labelledby="h-equipo">
+        <h2 id="h-equipo" style={{ marginTop: 0 }}>Equipo</h2>
+        <VistaEquipo estado={estado} onQuitar={(r) => accion(() => api.desequipar(r), "Listo, te lo quitaste.")} />
+      </section>
 
       <section className="panel" aria-label="Estadísticas">
         <div className="stats">
@@ -142,6 +188,8 @@ export function Perfil() {
       <section className="panel oscuro" aria-labelledby="h-mascota">
         <h2 id="h-mascota" style={{ marginTop: 0 }}>Mascota</h2>
         <Mascota mascota={estado.mascota} onRevive={refrescar} />
+        <p style={{ fontSize: 15, margin: "10px 0 0" }}>Tus mascotas ganan XP cuando aciertas seguido sin pedir ayuda y sin perder vidas.</p>
+        <EvolucionMascotas estado={estado} />
       </section>
 
       <section className="panel" aria-labelledby="h-inv">
@@ -161,6 +209,13 @@ export function Perfil() {
                 {USABLES.has(it.item_id) && (
                   <button className="boton chico" onClick={() => accion(() => api.usarItem(it.item_id), `Usaste: ${nombreItem(it.item_id)}.`)}>Usar</button>
                 )}
+                {ranuraDe(it.item_id) && (equipo[ranuraDe(it.item_id)!] === it.item_id ? (
+                  <button className="boton chico secundario" aria-label={`Quitar ${nombreItem(it.item_id)}`}
+                    onClick={() => accion(() => api.desequipar(ranuraDe(it.item_id)!), `Te quitaste: ${nombreItem(it.item_id)}.`)}>Quitar</button>
+                ) : (
+                  <button className="boton chico verde" aria-label={`Equipar ${nombreItem(it.item_id)}`}
+                    onClick={() => accion(() => api.equipar(it.item_id), `Te pusiste: ${nombreItem(it.item_id)}.`)}>Equipar</button>
+                ))}
                 {it.item_id.startsWith("mascota_") && (
                   <button className="boton chico verde" onClick={() => accion(() => api.equiparMascota(it.item_id), "Mascota equipada.")}>Equipar</button>
                 )}

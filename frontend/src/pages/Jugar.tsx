@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import type { Ayuda, CofreAbierto, EstadoMascota, FinIntento, IntentoIniciado, RespuestaPregunta, ResultadoRespuesta, TipoPregunta } from "../api";
+import type { Ayuda, CofreAbierto, EstadoMascota, FinIntento, IntentoIniciado, PreguntaJugable, ProgresoReanudado, RespuestaPregunta, ResultadoRespuesta, TipoPregunta } from "../api";
 import { useApi, useEstadoJuego } from "../contexto";
 import { ANFITRIONES, type FichaPersonaje } from "../arte";
 import type { Bioma } from "../escenas";
@@ -14,6 +14,7 @@ import { Cortinilla, type EstadoCortina } from "../components/juego/Cortinilla";
 import { FinNivel } from "../components/juego/FinNivel";
 import { CapaParticulas, alAzar, esCasi, momentos, pausa, siguienteRacha, tocar, useContador, useEfectos } from "../efectos";
 import { mensajeError } from "../lib/validacion";
+import { musica } from "../escenas/musica";
 import "../components/juego/juego.css";
 
 /** ¿Puede ayudar la mascota en este tipo de pregunta? (PLAN: común solo MC/VF; rara además completar/numérica/ordenar; legendaria todo). */
@@ -64,6 +65,24 @@ const MAL = ["Mira la correcta: así se aprende.", "Tranquilo, de los errores se
 const CASI = ["¡Casi! Estuviste muy cerca.", "¡Uf, por poquito!", "¡Casi casi! Ya casi la tienes."];
 const TIEMPO = "¡Se acabó el tiempo! No pasa nada.";
 
+/** Estado reconstruido al retomar una partida pausada (v0.3): primera sin responder, marcas, aciertos y XP. */
+export function restaurarProgreso(preguntas: PreguntaJugable[], prog: ProgresoReanudado) {
+  const porId = new Map(prog.respondidas.map((x) => [String(x.pregunta_id), x]));
+  const marcas: Marca[] = preguntas.map((q) => {
+    const x = porId.get(String(q.id));
+    return x ? (x.correcta ? "bien" : "mal") : null;
+  });
+  const primera = marcas.findIndex((m) => m === null);
+  return {
+    marcas,
+    idx: primera === -1 ? Math.max(0, preguntas.length - 1) : primera,
+    completo: primera === -1,
+    aciertos: prog.respondidas.filter((x) => x.correcta).length,
+    xp: prog.xp_ganada,
+    restante: Math.max(0, prog.restante_s),
+  };
+}
+
 export function Jugar() {
   const api = useApi();
   const nav = useNavigate();
@@ -100,6 +119,13 @@ export function Jugar() {
   const [golpeXp, setGolpeXp] = useState(0);
   const [sacudir, setSacudir] = useState(false);
   const [cortina, setCortina] = useState<EstadoCortina>("descubrir");
+  // v0.3
+  const [ronda, setRonda] = useState(0); // sube al pulsar «Reintentar nivel»
+  const [reanudo, setReanudo] = useState<{ idx: number; restante: number } | null>(null);
+  const [avisoInicio, setAvisoInicio] = useState<string | null>(null);
+  const [evoluciono, setEvoluciono] = useState<number | null>(null);
+  /** Intento sin terminar: se pausa al salir (desmontar o cambiar de nivel). */
+  const pendiente = useRef<IntentoIniciado["intento_id"] | null>(null);
 
   const inicio = useRef(Date.now());
   const siguienteBtn = useRef<HTMLButtonElement>(null);
@@ -122,11 +148,31 @@ export function Jugar() {
     let vivo = true;
     setIntento(null); setIdx(0); setResultado(null); setAyudas([]); setFin(null); setCofre(null); setXp(0); setError(null);
     setRacha(0); setMejorRacha(0); setCasi(false); setAciertos(0); setReaccion("pregunta"); setComentario(null); setHerido(false); setGesto("quieta"); setAvisoMascota(null);
+    setReanudo(null); setAvisoInicio(null); setEvoluciono(null); setXpAntes(null);
     setCortina((c) => (c === "cubrir" || c === "descubrir" ? "descubrir" : null));
     const t = setTimeout(() => vivo && setCortina(null), 800);
     api.iniciarNivel(nivelId).then((r) => {
       if (!vivo) return;
+      pendiente.current = r.intento_id;
       setIntento(r); setMarcas(r.preguntas.map(() => null)); inicio.current = Date.now();
+      if (r.reanudado && r.progreso) {
+        const p = restaurarProgreso(r.preguntas, r.progreso);
+        const q = r.preguntas[p.idx];
+        setMarcas(p.marcas); setIdx(p.idx); setAciertos(p.aciertos); setXp(p.xp);
+        setReanudo({ idx: p.idx, restante: p.restante });
+        // El tiempo ya consumido cuenta para `tiempo_ms`.
+        if (q) inicio.current = Date.now() - Math.max(0, q.tiempo_s - p.restante) * 1000;
+        if (r.progreso.respondidas.length > 0 || (q && p.restante < q.tiempo_s - 1)) setAvisoInicio("Partida retomada");
+        if (p.completo) {
+          // Todo respondido pero sin cerrar: se cierra ya.
+          api.terminar(r.intento_id).then((f) => {
+            if (!vivo) return;
+            pendiente.current = null;
+            setFin(f);
+            void refrescar();
+          }).catch((e) => vivo && setError(mensajeError(e)));
+        }
+      }
     }).catch((e) => vivo && setError(mensajeError(e)));
     if (cursoId) {
       api.camino(cursoId).then((c) => {
@@ -135,8 +181,24 @@ export function Jugar() {
       }).catch(() => {});
     }
     void refrescar();
-    return () => { vivo = false; clearTimeout(t); };
-  }, [api, nivelId, cursoId, refrescar]);
+    return () => {
+      vivo = false; clearTimeout(t);
+      // Mejora 2: salir a otra sección (o pulsar ✕) con la partida sin terminar la pausa en el servidor.
+      if (pendiente.current !== null) { api.pausar(pendiente.current).catch(() => {}); pendiente.current = null; }
+    };
+  }, [api, nivelId, cursoId, refrescar, ronda]);
+
+  // Música de fondo del nivel; al salir vuelve la del mapa.
+  useEffect(() => {
+    musica.reproducir("nivel");
+    return () => musica.reproducir("mapa");
+  }, []);
+
+  useEffect(() => {
+    if (!avisoInicio) return;
+    const t = setTimeout(() => setAvisoInicio(null), 3500);
+    return () => clearTimeout(t);
+  }, [avisoInicio]);
 
   const pregunta = intento?.preguntas[idx];
 
@@ -177,6 +239,10 @@ export function Jugar() {
       setHerido(vidaPerdida);
       setRapido(res.correcta && tiempo < pregunta.tiempo_s * 1000 * 0.35);
       setComentario(res.correcta ? alAzar(nuevaRacha >= 3 ? RACHA : BIEN) : r === null ? TIEMPO : alAzar(cerca ? CASI : MAL));
+      if (res.mascota_evento?.evoluciono) {
+        setEvoluciono(res.mascota_evento.etapa);
+        setTimeout(() => tocar("subirNivel"), 700);
+      }
       celebrar(res, nuevaRacha, vidaPerdida);
       setTimeout(() => siguienteBtn.current?.focus(), 0);
     } catch (e) {
@@ -234,13 +300,16 @@ export function Jugar() {
       tocar("whoosh");
       setIdx(idx + 1); setResultado(null); setAyudas([]); setError(null); setCasi(false);
       setReaccion("pregunta"); setComentario(null); setHerido(false); setRapido(false); setAvisoMascota(null);
+      setEvoluciono(null);
       inicio.current = Date.now();
       return;
     }
     try {
       setXpAntes(Math.max(0, ...Object.values(estado?.xp_total_por_tema ?? {})));
       tocar("whoosh");
-      setFin(await api.terminar(intento.intento_id));
+      const f = await api.terminar(intento.intento_id);
+      pendiente.current = null;
+      setFin(f);
       void refrescar();
     } catch (e) {
       setError(mensajeError(e));
@@ -267,6 +336,8 @@ export function Jugar() {
     try { setCofre(await api.abrirCofre(fin.cofre.id)); void refrescar(); } catch (e) { setError(mensajeError(e)); }
   };
 
+  const reintentar = () => { tocar("whoosh"); setRonda((r) => r + 1); };
+
   const volver = cursoId ? `/?curso=${cursoId}` : "/";
   const capas = <><CapaParticulas /><Cortinilla estado={cortina} /></>;
 
@@ -279,7 +350,7 @@ export function Jugar() {
         {capas}
         <FinNivel fin={fin} cofre={cofre} onAbrirCofre={abrirCofre} onSiguiente={siguienteNivel} volver={volver} error={error}
           bioma={bioma} anfitrion={anfitrion} tier={tier} aciertos={aciertos} total={intento.preguntas.length}
-          mejorRacha={mejorRacha} rachaDias={estado?.racha ?? 0} xpAntes={xpAntes} />
+          mejorRacha={mejorRacha} rachaDias={estado?.racha ?? 0} xpAntes={fin.aprobado === false ? null : xpAntes} onReintentar={reintentar} equipo={estado?.equipo ?? null} />
       </div>
     );
   }
@@ -287,6 +358,9 @@ export function Jugar() {
   if (!pregunta) return <p>Este nivel no tiene preguntas. <Link to={volver}>Volver</Link></p>;
   const total = intento.preguntas.length;
   const ultima = idx + 1 >= total;
+  // Al retomar, el reloj de esa pregunta arranca con lo que le quedaba.
+  const segundos = reanudo && reanudo.idx === idx ? reanudo.restante : pregunta.tiempo_s;
+  const evento = resultado?.mascota_evento ?? null;
 
   return (
     <div className={`jg-nivel ${sacudir ? "jg-sacude" : ""}`}>
@@ -303,13 +377,16 @@ export function Jugar() {
           <Combo racha={racha} />
           <ContadorXp ref={xpRef} valor={xpMostrada} golpe={golpeXp} />
         </div>
-        <Temporizador segundos={pregunta.tiempo_s} activo={!resultado && !enviando} clave={pregunta.id} onAgotado={() => responder(null)}
+        <Temporizador segundos={segundos} total={pregunta.tiempo_s} activo={!resultado && !enviando} clave={pregunta.id} onAgotado={() => responder(null)}
           onSegundo={(seg) => tocar("tic", seg)} />
       </header>
       {calentamiento && <p className="aviso jg-aviso">Calentamiento: aquí los errores no cuestan vidas.</p>}
+      {intento.reintento && <p className="aviso jg-aviso">Reintento: preguntas nuevas de la misma dificultad.</p>}
+      {avisoInicio && <p className="aviso jg-aviso jg-aviso-retomada" role="status">{avisoInicio}</p>}
 
       <EscenaNivel key={`esc-${pregunta.id}`} bioma={bioma} anfitrion={anfitrion} reaccion={reaccion} enunciado={pregunta.enunciado}
         idEnunciado={`enun-${pregunta.id}`} comentario={comentario} tier={tier} mascota={mascota} gestoMascota={gesto} herido={herido}
+        equipo={estado?.equipo ?? null}
         alRegistrarSaltar={(f) => { saltarTecleo.current = f; }}
         extra={rapido ? <div className="jg-rapido" aria-hidden="true">¡Rápido!</div> : null} />
 
@@ -331,8 +408,12 @@ export function Jugar() {
             {rapido && <span className="jg-chip jg-chip-rapido">¡Rápido!</span>}
             {racha >= 2 && <span className="jg-chip jg-chip-racha">Racha {racha}</span>}
             {herido && <span className="jg-chip jg-chip-vida">−1 vida</span>}
+            {evento && evento.xp_ganada > 0 && <span className="jg-chip jg-chip-mascota">+{evento.xp_ganada} XP mascota</span>}
             {!resultado.correcta && !herido && calentamiento && <span className="jg-chip">Sin costo: calentamiento</span>}
           </div>
+          {evoluciono !== null && (
+            <div className="jg-evoluciona" role="status">¡Tu mascota evolucionó!{evoluciono === 3 ? " Forma final" : ` Etapa ${evoluciono}`}</div>
+          )}
           {!resultado.correcta && !ABIERTAS.includes(pregunta.tipo) && (
             <p className="jg-fb-correcta">La respuesta correcta es: <strong>{textoRespuesta(resultado.respuesta_correcta, pregunta.opciones, pregunta.tipo)}</strong></p>
           )}

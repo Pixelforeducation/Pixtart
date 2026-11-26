@@ -16,6 +16,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Any
 
+from app.game.evolucion_mascota import AYUDA_EXTRA_ETAPA_3
 from app.game.tipos import (
     TIPOS_ABIERTOS,
     TIPOS_FILL,
@@ -86,28 +87,33 @@ def hambrienta(estado: EstadoVidas) -> bool:
     return estado.comida <= 0
 
 
-def cupo_ayudas(rareza: Rareza | str, con_hambre: bool) -> int:
+def cupo_ayudas(rareza: Rareza | str, con_hambre: bool, etapa: int = 1) -> int:
     """Ayudas por nivel: común 1, rara 2, legendaria 3. Con hambre la mitad hacia abajo,
-    con mínimo 1 solo para la legendaria."""
+    con mínimo 1 solo para la legendaria. La forma final (etapa 3, mejora 10) suma
+    `AYUDA_EXTRA_ETAPA_3` después de aplicar el hambre."""
     rareza = Rareza(rareza)
     n = AYUDAS_POR_RAREZA[rareza]
     if con_hambre:
         n //= 2
         if rareza is Rareza.LEGENDARIA:
             n = max(1, n)
+    if etapa >= 3:
+        n += AYUDA_EXTRA_ETAPA_3
     return n
 
 
-def ayudas_restantes(estado: EstadoVidas, ahora: datetime) -> int:
+def ayudas_restantes(estado: EstadoVidas, ahora: datetime, etapa: int = 1) -> int:
     estado = actualizar(estado, ahora)
     if not esta_viva(estado, ahora) or estado.nivel_sin_ayudas:
         return 0
     assert estado.mascota is not None
-    cupo = cupo_ayudas(estado.mascota.rareza, hambrienta(estado))
+    cupo = cupo_ayudas(estado.mascota.rareza, hambrienta(estado), etapa)
     return max(0, cupo - estado.ayudas_usadas_nivel)
 
 
-def vista_mascota(estado: EstadoVidas, ahora: datetime) -> dict[str, Any] | None:
+def vista_mascota(
+    estado: EstadoVidas, ahora: datetime, etapa: int = 1
+) -> dict[str, Any] | None:
     """`EstadoMascota` del contrato, o None si no hay mascota equipada."""
     estado = actualizar(estado, ahora)
     if estado.mascota is None:
@@ -120,7 +126,7 @@ def vista_mascota(estado: EstadoVidas, ahora: datetime) -> dict[str, Any] | None
         "revive_en": estado.muerta_hasta.isoformat() if estado.muerta_hasta else None,
         "comida": estado.comida,
         "hambrienta": hambrienta(estado),
-        "ayudas_restantes_nivel": ayudas_restantes(estado, ahora),
+        "ayudas_restantes_nivel": ayudas_restantes(estado, ahora, etapa),
     }
 
 
@@ -299,10 +305,12 @@ def usar_ayuda(
     ahora: datetime,
     *,
     ya_dadas: frozenset[int] = frozenset(),
+    etapa: int = 1,
 ) -> tuple[EstadoVidas, dict[str, Any]]:
-    """Pide una ayuda: valida cupo y tipo, consume 1 ayuda del nivel y 1 comida (si hay)."""
+    """Pide una ayuda: valida cupo y tipo, consume 1 ayuda del nivel y 1 comida (si hay).
+    `etapa` es la de evolución de la mascota equipada (la 3 da una ayuda extra)."""
     estado = actualizar(estado, ahora)
-    if ayudas_restantes(estado, ahora) <= 0:
+    if ayudas_restantes(estado, ahora, etapa) <= 0:
         raise SinAyuda("No hay ayudas disponibles en este nivel.")
     assert estado.mascota is not None
     ayuda = ayuda_para(pregunta, estado.mascota.rareza, rng, ya_dadas=ya_dadas)

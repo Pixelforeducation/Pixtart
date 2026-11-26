@@ -461,3 +461,133 @@
 @media (max-width: 480px) { .jg-escenario { min-height: 250px; } }
 .jg-item-arte { display: inline-grid; place-items: center; flex: none; line-height: 0; overflow: hidden; }
 .jg-item-arte img, .jg-item-arte svg { width: 100% !important; height: 100% !important; object-fit: contain; image-rendering: pixelated; }
+
+/* =================== Ataques (v0.3, mejoras 4 y 5) ===================
+   Al acertar, el héroe ataca al anfitrión con la animación de su arma; al fallar, el anfitrión embiste.
+   --jg-int (0..1) viene de useIntensidad: "suave" acorta los recorridos; "apagada" o
+   prefers-reduced-motion no pintan el ataque (EscenaNivel no pone las clases). */
+.jg-actores { position: relative; --jg-dist: min(30vw, 190px); --jg-golpe-t: 0.24s; }
+.jg-heroe-cuerpo { position: relative; z-index: 2; line-height: 0; }
+.jg-heroe-espejo { display: inline-block; transform: scaleX(-1); } /* mira hacia el anfitrión */
+.jg-heroe-sprite { display: inline-block; }
+.jg-fx { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.jg-fx > span { position: absolute; display: block; opacity: 0; }
+.jg-arma-flecha, .jg-arma-orbe { --jg-golpe-t: 0.5s; }
+.jg-arma-martillazo { --jg-golpe-t: 0.36s; }
+.jg-arma-triple { --jg-golpe-t: 0.16s; }
+
+.jg-fx-impacto { left: 9%; bottom: 42%; width: 36px; height: 36px; margin-left: -18px;
+  background: radial-gradient(circle, #fff 0 22%, var(--c-moneda3, #FFE27A) 23% 42%, transparent 44%); }
+.jg-fx-impacto i { position: absolute; left: 16px; top: 2px; width: 4px; height: 10px; background: #fff; transform-origin: 2px 16px; }
+.jg-fx-impacto i:nth-child(2) { transform: rotate(90deg); }
+.jg-fx-impacto i:nth-child(3) { transform: rotate(180deg); }
+.jg-fx-impacto i:nth-child(4) { transform: rotate(270deg); }
+
+.jg-fx-proyectil { left: 70%; bottom: 40%; }
+.jg-fx-flecha .jg-fx-proyectil { width: 30px; height: 4px; background: #8A5A2B; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
+.jg-fx-flecha .jg-fx-proyectil::before { content: ""; position: absolute; left: -8px; top: -4px; border: 6px solid transparent; border-right: 8px solid #D8D8E0; border-left: 0; }
+.jg-fx-flecha .jg-fx-proyectil::after { content: ""; position: absolute; right: -4px; top: -3px; width: 8px; height: 10px; background: #E04848; clip-path: polygon(0 50%, 100% 0, 60% 50%, 100% 100%); }
+.jg-fx-orbe .jg-fx-proyectil { width: 18px; height: 18px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff 0 18%, #C69CFF 20% 55%, #6B3FD6 60%); box-shadow: 0 0 12px 4px rgba(170, 120, 255, 0.85); }
+
+.jg-fx-tajo { left: 3%; bottom: 26%; width: 78px; height: 78px; border-radius: 50%;
+  border: 0 solid transparent; border-left: 7px solid #fff; filter: drop-shadow(0 0 4px #9FE7FF); }
+
+@media (prefers-reduced-motion: no-preference) {
+  .jg-heroe .jg-heroe-sprite { animation: jg-flota 1.4s steps(2) infinite; }
+  .jg-heroe.jg-salta .jg-heroe-sprite { animation: jg-salto 0.55s cubic-bezier(.3, .7, .4, 1) 0.7s 2; }
+
+  /* --- el héroe ataca --- */
+  .jg-ataque-heroe .jg-heroe-cuerpo { animation: jg-embiste-izq 0.62s cubic-bezier(.3, .7, .4, 1) both; }
+  .jg-ataque-heroe.jg-arma-triple .jg-heroe-cuerpo { animation: jg-embiste-izq 0.8s cubic-bezier(.3, .7, .4, 1) both; }
+  .jg-ataque-heroe.jg-arma-flecha .jg-heroe-cuerpo,
+  .jg-ataque-heroe.jg-arma-orbe .jg-heroe-cuerpo { animation: jg-dispara 0.4s steps(4) both; }
+  .jg-ataque-heroe.jg-arma-martillazo .jg-heroe-cuerpo { animation: jg-martillo 0.75s cubic-bezier(.3, .7, .4, 1) both; }
+  .jg-ataque-heroe.jg-arma-martillazo { animation: jg-temblor-suave 0.35s steps(6) var(--jg-golpe-t); }
+
+  .jg-ataque-heroe .jg-anfitrion .jg-personaje { animation: jg-golpeado 0.5s steps(6) var(--jg-golpe-t) both; }
+  .jg-ataque-heroe.jg-arma-triple .jg-anfitrion .jg-personaje { animation: jg-golpeado 0.24s steps(4) var(--jg-golpe-t) 3; }
+  .jg-ataque-heroe.jg-arma-martillazo .jg-anfitrion .jg-personaje { animation: jg-aplastado 0.55s steps(6) var(--jg-golpe-t) both; }
+
+  .jg-fx-impacto { animation: jg-impacto 0.36s steps(4) var(--jg-golpe-t) both; }
+  .jg-fx-triple .jg-fx-impacto { animation-duration: 0.24s; animation-iteration-count: 3; }
+  .jg-fx-proyectil { animation: jg-viaja 0.42s linear 0.1s both; }
+  .jg-fx-orbe .jg-fx-proyectil { animation: jg-viaja 0.42s linear 0.1s both, jg-gira 0.3s steps(4) 0.1s 2; }
+  .jg-fx-tajo { animation: jg-tajo 0.28s ease-out 0.18s both; }
+  .jg-fx-triple .jg-fx-tajo:nth-child(1) { animation-delay: 0.12s; }
+  .jg-fx-triple .jg-fx-tajo:nth-child(2) { animation: jg-tajo-rev 0.22s ease-out 0.36s both; }
+  .jg-fx-triple .jg-fx-tajo:nth-child(3) { animation-delay: 0.6s; }
+
+  /* --- el anfitrión ataca --- */
+  .jg-ataque-anfitrion .jg-anfitrion .jg-personaje { animation: jg-embiste-der 0.6s cubic-bezier(.3, .7, .4, 1) both; }
+  .jg-ataque-anfitrion .jg-heroe-cuerpo { animation: jg-recibe 0.55s steps(6) 0.24s both; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .jg-fx { display: none; }
+}
+
+@keyframes jg-embiste-izq {
+  0% { transform: none; }
+  18% { transform: translateX(calc(10px * var(--jg-int, 1))); }
+  40%, 55% { transform: translateX(calc(var(--jg-dist) * -1 * var(--jg-int, 1))); }
+  100% { transform: none; }
+}
+@keyframes jg-embiste-der {
+  0% { transform: none; }
+  18% { transform: translateX(calc(-10px * var(--jg-int, 1))); }
+  40%, 55% { transform: translateX(calc(var(--jg-dist) * var(--jg-int, 1))); }
+  100% { transform: none; }
+}
+@keyframes jg-dispara { 0%, 100% { transform: none; } 30% { transform: translateX(calc(8px * var(--jg-int, 1))) scale(1.05, 0.95); } }
+@keyframes jg-martillo {
+  0% { transform: none; }
+  30% { transform: translate(calc(var(--jg-dist) * -0.6 * var(--jg-int, 1)), calc(-44px * var(--jg-int, 1))) rotate(-12deg); }
+  48%, 60% { transform: translateX(calc(var(--jg-dist) * -0.85 * var(--jg-int, 1))) scale(1.1, 0.9); }
+  100% { transform: none; }
+}
+@keyframes jg-golpeado {
+  0%, 100% { transform: none; opacity: 1; }
+  20% { transform: translateX(calc(-16px * var(--jg-int, 1))); opacity: 0.25; }
+  40% { opacity: 1; }
+  60% { transform: translateX(calc(-10px * var(--jg-int, 1))); opacity: 0.25; }
+  80% { opacity: 1; }
+}
+@keyframes jg-aplastado {
+  0%, 100% { transform: none; opacity: 1; }
+  20% { transform: scale(1.25, 0.6); transform-origin: 50% 100%; opacity: 0.4; }
+  50% { transform: scale(0.9, 1.1); opacity: 1; }
+  70% { opacity: 0.4; }
+}
+@keyframes jg-recibe {
+  0%, 100% { transform: none; filter: none; }
+  20%, 60% { transform: translateX(calc(12px * var(--jg-int, 1))); filter: sepia(1) saturate(8) hue-rotate(-50deg) brightness(0.95); }
+  40%, 80% { transform: translateX(calc(4px * var(--jg-int, 1))); filter: none; }
+}
+@keyframes jg-impacto { 0% { transform: scale(0.2); opacity: 0; } 30% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
+@keyframes jg-viaja { 0% { left: 70%; opacity: 0; } 10% { opacity: 1; } 90% { left: 16%; opacity: 1; } 100% { left: 13%; opacity: 0; } }
+@keyframes jg-tajo { 0% { transform: rotate(-70deg) scale(0.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: rotate(80deg) scale(1.1); opacity: 0; } }
+@keyframes jg-tajo-rev { 0% { transform: scaleX(-1) rotate(-70deg) scale(0.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: scaleX(-1) rotate(80deg) scale(1.1); opacity: 0; } }
+
+/* =================== Evolución de mascota (v0.3, mejora 10) =================== */
+.jg-mp-evo { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-family: var(--fuente-pixel); font-size: 7px; }
+.jg-mp-etapa { padding: 2px 4px; background: var(--r-rara2, #8FB8FF); color: var(--texto-osc); border: 2px solid var(--c-borde); }
+.jg-mp-barra { position: relative; display: block; width: 72px; height: 8px; background: var(--c-fondo2); border: 2px solid var(--c-borde); }
+.jg-mp-barra > span { display: block; height: 100%; background: var(--r-rara, #4F7BE0); transition: width 0.5s steps(5); }
+.jg-mp-racha { opacity: 0.85; }
+.jg-chip-mascota { background: var(--r-rara2, #8FB8FF); }
+.jg-evoluciona { position: relative; z-index: 2; margin: 8px auto; padding: 8px 12px; max-width: 420px; text-align: center;
+  font-family: var(--fuente-pixel); font-size: 10px; color: var(--texto-osc); background: var(--c-moneda3, #FFE27A);
+  border: 4px solid var(--c-borde); box-shadow: 0 0 0 3px var(--r-leg2, #FFD36B); }
+.jg-aviso-retomada { position: relative; z-index: 2; }
+@media (prefers-reduced-motion: no-preference) {
+  .jg-evoluciona { animation: jg-pop-grande 0.5s steps(4), jg-brilla-evo 0.8s steps(2) 0.5s 3; }
+  .jg-aviso-retomada { animation: jg-sube 0.3s steps(4); }
+}
+@keyframes jg-brilla-evo { 50% { box-shadow: 0 0 0 3px var(--r-leg2, #FFD36B), 0 0 18px 6px var(--r-leg2, #FFD36B); } }
+
+/* =================== Nivel no aprobado (v0.3, mejora 6) =================== */
+.jg-fin-panel.jg-no-aprobado h1 { color: var(--texto); }
+.jg-fin-minimo { font-family: var(--fuente-pixel); font-size: 10px; margin: 8px 0; }
+.jg-fin-minimo-barra { position: relative; height: 14px; margin: 10px auto; max-width: 320px; background: var(--c-fondo2); border: 3px solid var(--c-borde); }
+.jg-fin-minimo-barra > span { display: block; height: 100%; background: var(--vida3, #E04848); }
+.jg-fin-minimo-barra > i { position: absolute; top: -6px; bottom: -6px; width: 3px; background: var(--c-moneda3, #FFE27A); }

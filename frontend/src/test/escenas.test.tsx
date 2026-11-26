@@ -65,6 +65,26 @@ describe("Inicio (mapa)", () => {
   });
 });
 
+describe("Inicio: nivel final", () => {
+  it("cada sección termina en su castillo real (bloqueado hasta completarla) y no hay castillo «próximamente»", async () => {
+    guardarToken("t");
+    renderCon(<Inicio />, { op: { completados: ["100", "101", "102"] }, ruta: "/", patron: "/" });
+    const u = userEvent.setup();
+    const hoja = await screen.findByRole("region", { name: "Sección La hoja" });
+    const calvin = screen.getByRole("region", { name: "Sección Ciclo de Calvin" });
+    expect(screen.queryByText(/próximamente/i)).toBeNull();
+    expect(within(calvin).getByRole("button", { name: "Nivel final: Nivel final: Ciclo de Calvin (bloqueado)" })).toBeInTheDocument();
+    // La sección siguiente no espera al jefe: su primer nivel es el siguiente.
+    expect(within(calvin).getByRole("button", { name: /RuBisCO \(siguiente\)/ })).toBeInTheDocument();
+
+    await u.click(within(calvin).getByRole("button", { name: /Nivel final: Ciclo de Calvin/ }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Completa la sección para retar al jefe");
+
+    await u.click(within(hoja).getByRole("button", { name: "Nivel final: Nivel final: La hoja (disponible)" }));
+    expect(await screen.findByText("otra ruta")).toBeInTheDocument(); // navegó a /final/demo?curso=1
+  });
+});
+
 describe("Perfil", () => {
   it("muestra el tier, la escalera de evolución y el inventario", async () => {
     guardarToken("t");

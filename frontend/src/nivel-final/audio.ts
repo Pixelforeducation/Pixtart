@@ -1,4 +1,6 @@
-/** Sonido chiptune sintetizado (WebAudio, sin archivos): efectos y un bucle de música. Silencio por defecto. */
+/** Sonido chiptune sintetizado (WebAudio, sin archivos): efectos (silencio por defecto). La música es la global. */
+import { musica as musicaGlobal } from "../escenas/musica";
+
 const CLAVE = "pixtart.nivelFinal.sonido";
 
 export type Efecto = "golpe" | "critico" | "herido" | "caida" | "jefe" | "furia" | "victoria" | "derrota" | "cofre";
@@ -70,40 +72,12 @@ export function tocar(efecto: Efecto, activo: boolean): void {
   }
 }
 
-// ---- Música: bajo + arpegio en La menor. En furia se acelera y sube de tono.
-const BAJO = [110, 110, 87.3, 87.3, 98, 98, 82.4, 82.4];
-const ARPEGIO = [0, 3, 7, 12, 7, 3, 0, 7];
-let timer: ReturnType<typeof setTimeout> | null = null;
-let paso = 0;
-let enFuria = false;
+// ---- Música: el nivel final ya no tiene bucle propio (antes sonaba encima de la música global).
+// Usa la pista "final" de `escenas/musica.ts`, que sigue los ajustes globales de música y el silencio
+// global. El interruptor local del nivel final (sonidoGuardado) solo controla estos efectos.
+// La pista "final" la pide el marco (App.tsx) según la ruta /final/…; aquí solo se marca la furia.
 
-function programar(): void {
-  const c = ctx;
-  if (!c) return;
-  const corchea = enFuria ? 0.14 : 0.19;
-  const compas = Math.floor(paso / 8) % BAJO.length;
-  const base = BAJO[compas] * (enFuria ? 1.06 : 1);
-  const t = c.currentTime + 0.02;
-  if (paso % 2 === 0) nota(c, base, t, corchea * 1.8, "triangle", 0.05);
-  nota(c, base * 2 * Math.pow(2, ARPEGIO[paso % 8] / 12), t, corchea * 0.7, "square", 0.018);
-  paso++;
-  timer = setTimeout(programar, corchea * 1000);
-}
-
-/** Enciende/apaga el bucle de música (idempotente). */
-export function musica(activa: boolean, furia = false): void {
-  enFuria = furia;
-  if (!activa) {
-    if (timer) clearTimeout(timer);
-    timer = null;
-    return;
-  }
-  if (timer) return;
-  try {
-    if (!contexto()) return;
-    paso = 0;
-    programar();
-  } catch {
-    /* audio no disponible */
-  }
+/** Compatibilidad con `index.tsx`: marca la furia (acelera la pista "final"); `activa` ya no enciende otro bucle. */
+export function musica(_activa: boolean, furia = false): void {
+  musicaGlobal.setFuria(furia);
 }
