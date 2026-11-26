@@ -7,6 +7,8 @@
  *
  *   capa (detrás) → sprite base → ropa → armadura → cosméticos de tier → arma (`.heroe-arma`)
  *
+ * El arma va en su propio SVG más grande (viewBox -8 -12 48 48) para sobresalir de la silueta.
+ *
  * Cosméticos de evolución (no salen en la tienda): tier 2 bandana + ropa de otro color; tier 3 pelo
  * cobrizo + hombreras; tier 4 casco; tier 5 capa y silueta más ancha; tier 6 además corona.
  * Si hay ropa equipada, la ropa manda en el color, pero los accesorios de tier siguen visibles.
@@ -154,64 +156,260 @@ export const ARMADURAS: Record<string, DefArmadura> = {
   },
 };
 
-// ---- Armas (la mano libre está en (20–21, 22); el arma se toma en x22) ----
+// ---- Armas ----
+// Se dibujan en su propia capa, más grande que el cuerpo: viewBox "-8 -12 48 48" (1 unidad = 1 píxel del
+// cuerpo), así el arma sobresale de la silueta sin cambiar la escala. La mano libre está en (20–21, 22);
+// el arma se empuña ahí y lleva encima un puño (piel o guantelete) para que se lea "agarrada".
+// Cada arma se describe por celdas y recibe un contorno oscuro automático de 1 px (8 vecinos), para que
+// contraste con cualquier fondo. Algunas tienen sub-capas que la animación de ataque enciende o apaga
+// (cuerda tensa del arco, brillo de la gema del báculo).
 
-interface DefArma { nombre: string; px: Px[]; caja: [number, number, number, number] }
+/** viewBox de la capa del arma, en coordenadas del cuerpo. */
+export const VB_ARMA = { x: -8, y: -12, lado: 48 } as const;
+
+type Celdas = Map<string, string>;
+const clave = (x: number, y: number) => `${x},${y}`;
+
+function lienzo() {
+  const m: Celdas = new Map();
+  const pon = (x: number, y: number, c: string) => { m.set(clave(Math.round(x), Math.round(y)), c); };
+  const caja = (x: number, y: number, w: number, h: number, c: string) => {
+    for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) pon(i, j, c);
+  };
+  return { m, pon, caja };
+}
+
+/** Celdas → rects, fusionando tramos horizontales del mismo color. */
+function aPx(m: Celdas): Px[] {
+  const filas = new Map<number, [number, string][]>();
+  for (const [k, c] of m) {
+    const [x, y] = k.split(",").map(Number);
+    (filas.get(y) ?? filas.set(y, []).get(y)!).push([x, c]);
+  }
+  const px: Px[] = [];
+  for (const [y, fila] of [...filas].sort((a, b) => a[0] - b[0])) {
+    fila.sort((a, b) => a[0] - b[0]);
+    let [x0, c0] = fila[0];
+    let w = 1;
+    for (let i = 1; i <= fila.length; i++) {
+      const sig = fila[i];
+      if (sig && sig[0] === x0 + w && sig[1] === c0) { w++; continue; }
+      px.push([x0, y, w, 1, c0]);
+      if (sig) { [x0, c0] = sig; w = 1; }
+    }
+  }
+  return px;
+}
+
+/** Contorno de 1 px alrededor de `m` (8 vecinos), sin pisar las celdas de `aparte`. */
+function contorno(m: Celdas, aparte?: Celdas): Celdas {
+  const o: Celdas = new Map();
+  for (const k of m.keys()) {
+    const [x, y] = k.split(",").map(Number);
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const v = clave(x + dx, y + dy);
+      if (!m.has(v) && !aparte?.has(v)) o.set(v, O);
+    }
+  }
+  return o;
+}
+
+/** Puño que agarra el arma en la mano libre (piel, o guantelete si lleva armadura de placas). */
+function punio(guante: boolean, x = 20): Celdas {
+  const { m, caja } = lienzo();
+  const [a, b] = guante ? [ACERO.a, ACERO.b] : [PIEL, "#C8905A"];
+  caja(x, 21, 4, 3, a);
+  caja(x, 23, 4, 1, b);
+  caja(x, 21, 1, 3, b);
+  return m;
+}
+
+/**
+ * Dibujo pixel a partir de filas ASCII (un carácter por píxel, "." vacío) con contorno automático de 1 px.
+ * Lo usan los efectos de ataque de la escena (flecha, orbe, tajos, polvo…).
+ */
+export function dibujoPx(filas: readonly string[], colores: Record<string, string>, borde: string | null = O): Px[] {
+  const m: Celdas = new Map();
+  filas.forEach((f, y) => [...f].forEach((ch, x) => { if (colores[ch]) m.set(clave(x + 1, y + 1), colores[ch]); }));
+  return aPx(borde ? new Map([...[...contorno(m)].map(([k]) => [k, borde] as const), ...m]) : m);
+}
+
+export interface CapaArma { id: string; px: Px[]; oculta?: boolean }
+interface DefArma {
+  nombre: string;
+  /** x donde empieza el puño que la empuña (por defecto 20, la mano del sprite). */
+  mano?: number;
+  dibujar: () => { base: Celdas; extra?: { id: string; m: Celdas; oculta?: boolean; sinContorno?: boolean }[] };
+}
+
+const MADERA = { a: "#C08A4A", b: "#8B5A2B", c: "#5C3A1A" };
 
 export const ARMAS: Record<string, DefArma> = {
   arma_espada: {
     nombre: "Espada",
-    caja: [17, 5, 10, 21],
-    px: [
-      [22, 6, 1, 1, O], [21, 7, 1, 1, O], [23, 7, 1, 1, O], [22, 7, 1, 1, "#FFFFFF"],
-      [21, 8, 1, 12, O], [23, 8, 1, 12, O], [22, 8, 1, 12, "#D8D8E4"], [22, 9, 1, 4, "#FFFFFF"],
-      [19, 19, 7, 1, O], [19, 20, 7, 1, ORO], [19, 21, 7, 1, ORO2], [18, 20, 1, 2, O], [26, 20, 1, 2, O],
-      [21, 22, 1, 2, O], [23, 22, 1, 2, O], [22, 22, 1, 2, "#5C3A1A"], [22, 24, 1, 1, ORO], [21, 24, 1, 1, O], [23, 24, 1, 1, O], [22, 25, 1, 1, O],
-    ],
+    dibujar: () => {
+      const { m, pon, caja } = lienzo();
+      // hoja ancha (3 px) con filo brillante y punta
+      pon(22, -2, "#FFFFFF");
+      caja(21, -1, 3, 1, "#E8E8F0");
+      for (let y = 0; y <= 17; y++) { pon(21, y, "#FFFFFF"); pon(22, y, "#D8D8E4"); pon(23, y, ACERO.b); }
+      caja(22, 2, 1, 13, "#A3A3AE"); // acanaladura
+      // guarda dorada con gemas en las puntas
+      caja(17, 18, 11, 1, ORO); caja(17, 19, 11, 1, ORO2); pon(17, 18, "#E04848"); pon(27, 18, "#E04848");
+      caja(20, 18, 5, 1, ORO3);
+      // empuñadura y pomo
+      caja(21, 20, 3, 6, MADERA.c); pon(22, 24, MADERA.b);
+      caja(21, 26, 3, 2, ORO); pon(22, 26, ORO3);
+      return { base: m };
+    },
   },
   arma_arco: {
     nombre: "Arco",
-    caja: [19, 12, 9, 20],
-    px: [
-      [22, 15, 1, 15, "#FFF6D8"], // cuerda
-      [23, 13, 1, 2, "#A86F3C"], [24, 15, 1, 2, "#A86F3C"], [25, 17, 1, 11, "#A86F3C"], [24, 28, 1, 2, "#A86F3C"], [23, 30, 1, 2, "#A86F3C"],
-      [24, 13, 1, 2, "#5C3A1A"], [25, 15, 1, 2, "#5C3A1A"], [26, 17, 1, 11, "#5C3A1A"], [25, 28, 1, 2, "#5C3A1A"], [24, 30, 1, 2, "#5C3A1A"],
-      [22, 13, 1, 2, O], [22, 30, 1, 2, O], [25, 21, 1, 3, "#8E1F1F"],
-      // flecha preparada
-      [20, 22, 5, 1, "#A86F3C"], [19, 21, 1, 3, "#FFF6D8"], [25, 22, 1, 1, ACERO.a], [26, 22, 1, 1, ACERO.c],
-    ],
+    mano: 24,
+    dibujar: () => {
+      const arco = lienzo();
+      // arco delante del cuerpo: vientre en x25–26 (la mano lo empuña ahí), puntas recurvas hacia x21
+      for (let y = 7; y <= 35; y++) {
+        const t = (y - 21) / 14;
+        const x = 21 + Math.round(4 * (1 - t * t));
+        arco.pon(x, y, "#D9A066"); arco.pon(x + 1, y, "#A86F3C");
+        if (Math.abs(t) > 0.8) arco.pon(x + 1, y, MADERA.c);
+      }
+      arco.pon(20, 6, MADERA.c); arco.pon(20, 36, MADERA.c); arco.pon(21, 6, "#D9A066"); arco.pon(21, 36, "#D9A066");
+      arco.caja(25, 19, 2, 5, "#8E1F1F"); arco.caja(25, 20, 1, 3, "#E04848");
+      const suelta = lienzo();
+      for (let y = 8; y <= 34; y++) suelta.pon(21, y, "#FFF6D8");
+      // flecha preparada (en reposo)
+      const cargada = lienzo();
+      cargada.caja(21, 21, 13, 1, "#D9A066");
+      cargada.caja(34, 20, 1, 3, ACERO.c); cargada.pon(35, 21, "#FFFFFF"); cargada.pon(33, 21, ACERO.a);
+      for (const x of [19, 20, 21]) { cargada.pon(x, 20, "#E04848"); cargada.pon(x, 22, "#E04848"); }
+      // cuerda tensa en V hasta la mano de atrás y la flecha retraída
+      const cuerdaTensa = lienzo();
+      for (let y = 8; y <= 34; y++) cuerdaTensa.pon(21 - Math.round(7 * (1 - Math.abs(y - 21) / 13)), y, "#FFF6D8");
+      const tensa = lienzo();
+      tensa.caja(14, 21, 14, 1, "#D9A066");
+      tensa.caja(28, 20, 1, 3, ACERO.c); tensa.pon(29, 21, "#FFFFFF"); tensa.pon(27, 21, ACERO.a);
+      for (const x of [12, 13, 14]) { tensa.pon(x, 20, "#E04848"); tensa.pon(x, 22, "#E04848"); }
+      return {
+        base: arco.m,
+        extra: [
+          { id: "cuerda-suelta", m: suelta.m },
+          { id: "flecha-cargada", m: cargada.m },
+          { id: "cuerda-tensa", m: cuerdaTensa.m, oculta: true, sinContorno: true },
+          { id: "flecha-tensa", m: tensa.m, oculta: true },
+        ],
+      };
+    },
   },
   arma_baculo: {
     nombre: "Báculo",
-    caja: [17, 2, 11, 29],
-    px: [
-      [22, 9, 1, 21, "#8B5A2B"], [23, 9, 1, 21, "#5C3A1A"], [22, 30, 2, 1, O],
-      [21, 8, 1, 1, ORO2], [24, 8, 1, 1, ORO2], [20, 6, 1, 2, ORO2], [25, 6, 1, 2, ORO2],
-      [22, 3, 2, 1, "#8FB8FF"], [21, 4, 4, 3, "#8FB8FF"], [22, 7, 2, 1, "#3F7FE0"], [21, 6, 1, 1, "#3F7FE0"], [24, 6, 1, 1, "#3F7FE0"],
-      [22, 4, 1, 2, "#FFFFFF"],
-    ],
+    dibujar: () => {
+      const { m, pon, caja } = lienzo();
+      caja(22, -3, 1, 36, MADERA.b); caja(23, -3, 1, 36, MADERA.c);
+      for (let y = 0; y < 33; y += 5) pon(22, y, MADERA.a);
+      caja(22, 33, 2, 1, ACERO.d);
+      // garras doradas que sujetan la gema
+      caja(20, -5, 6, 1, ORO); caja(21, -4, 4, 1, ORO2); pon(22, -5, ORO3);
+      caja(18, -9, 1, 3, ORO); pon(19, -6, ORO); pon(19, -7, ORO2);
+      caja(27, -9, 1, 3, ORO); pon(26, -6, ORO); pon(26, -7, ORO2);
+      // gema
+      const filas: [number, string][] = [[-11, "......CC......"], [-10, ".....CWCc....."], [-9, "....CWCCcc...."], [-8, "....CCCCcc...."], [-7, ".....CCcc....."], [-6, "......cc......"]];
+      const col: Record<string, string> = { C: "#8FB8FF", W: "#FFFFFF", c: "#3F7FE0" };
+      const brillo = lienzo();
+      for (const [y, f] of filas) [...f].forEach((ch, i) => {
+        if (col[ch]) { pon(16 + i, y, col[ch]); brillo.pon(16 + i, y, ch === "c" ? "#D6E6FF" : "#FFFFFF"); }
+      });
+      return { base: m, extra: [{ id: "gema-brillo", m: brillo.m, oculta: true, sinContorno: true }] };
+    },
   },
   arma_martillo: {
     nombre: "Martillo",
-    caja: [17, 6, 12, 21],
-    px: [
-      [22, 13, 1, 12, "#8B5A2B"], [23, 13, 1, 12, "#5C3A1A"], [22, 25, 2, 1, ACERO.d], [22, 26, 2, 1, O],
-      [19, 7, 8, 1, O], [19, 13, 8, 1, O], [18, 8, 1, 5, O], [27, 8, 1, 5, O],
-      [19, 8, 8, 5, ACERO.b], [19, 8, 8, 1, ACERO.a], [20, 9, 1, 1, ACERO.c], [21, 8, 1, 5, ACERO.d], [24, 8, 1, 5, ACERO.d], [19, 12, 8, 1, ACERO.d],
-    ],
+    dibujar: () => {
+      const { m, pon, caja } = lienzo();
+      caja(22, 4, 1, 27, MADERA.b); caja(23, 4, 1, 27, MADERA.c);
+      for (let y = 6; y < 30; y += 3) pon(22, y, MADERA.a);
+      caja(22, 31, 2, 2, ACERO.d);
+      // cabeza de acero de 16×9 con caras de golpe y banda dorada
+      for (let y = -5; y <= 3; y++) for (let x = 15; x <= 30; x++) {
+        if ((x === 15 || x === 30) && (y === -5 || y === 3)) continue; // esquinas biseladas
+        const cara = x <= 16 || x >= 29;
+        let c = y === -5 ? "#E8E8F0" : y === 3 ? ACERO.d : cara ? ACERO.b : ACERO.a;
+        if (cara && y !== -5 && y !== 3) c = x === 15 || x === 30 ? ACERO.d : ACERO.b;
+        if (x >= 21 && x <= 24) c = y === -5 ? ORO3 : y === 3 ? ORO2 : ORO;
+        pon(x, y, c);
+      }
+      caja(17, -4, 3, 1, "#FFFFFF"); pon(26, -1, ACERO.d); pon(19, -1, ACERO.d); pon(22, -1, "#E04848"); pon(23, -1, "#E04848");
+      caja(22, -7, 2, 2, ACERO.a); pon(22, -7, "#E8E8F0"); // pincho superior
+      return { base: m };
+    },
   },
   arma_katana: {
     nombre: "Katana",
-    caja: [18, 1, 10, 27],
-    px: [
-      [24, 2, 1, 1, "#FFFFFF"], [24, 3, 1, 6, "#E8E8F0"], [25, 3, 1, 6, ACERO.b], [23, 9, 1, 10, "#E8E8F0"], [24, 9, 1, 10, ACERO.b],
-      [25, 2, 1, 1, O], [26, 3, 1, 6, O], [25, 9, 1, 10, O], [23, 2, 1, 7, O], [22, 9, 1, 10, O],
-      [21, 19, 5, 1, O], [22, 19, 3, 1, ORO],
-      [23, 20, 2, 6, O], [23, 21, 1, 1, "#E04848"], [24, 22, 1, 1, "#E04848"], [23, 23, 1, 1, "#E04848"], [24, 24, 1, 1, "#E04848"],
-      [23, 26, 2, 1, ORO],
-    ],
+    dibujar: () => {
+      const { m, pon, caja } = lienzo();
+      // hoja larga y fina en diagonal hacia delante, con una curva suave
+      for (let i = 0; i <= 23; i++) {
+        const y = 19 - i;
+        const x = 23 + Math.round(i * 0.42 + i * i * 0.006);
+        pon(x, y, "#FFFFFF");
+        if (i < 22) pon(x + 1, y, "#D8D8E4");
+        if (i < 20) pon(x + 2, y, ACERO.b);
+      }
+      // tsuba (guarda redonda)
+      caja(21, 19, 5, 1, ORO2); caja(22, 18, 3, 3, ORO); pon(22, 18, ORO3);
+      // mango con trenzado en rombos, hacia atrás y abajo
+      for (let i = 1; i <= 7; i++) {
+        const y = 20 + i;
+        const x = 23 - Math.round(i * 0.45);
+        pon(x - 1, y, i % 2 ? "#1B1F3B" : "#F0F0F8"); pon(x, y, i % 2 ? "#F0F0F8" : "#E04848");
+      }
+      caja(19, 28, 2, 1, ORO);
+      return { base: m };
+    },
   },
 };
+
+/** Capas ya resueltas de un arma (para el héroe y para su ícono). */
+export function capasArma(id: string, opciones: { guante?: boolean; mano?: boolean } = {}): CapaArma[] {
+  const def = ARMAS[id];
+  if (!def) return [];
+  const { base, extra = [] } = def.dibujar();
+  const capas: CapaArma[] = [{ id: "base", px: aPx(new Map([...contorno(base), ...base])) }];
+  for (const e of extra) {
+    const borde = e.sinContorno ? new Map<string, string>() : contorno(e.m, base);
+    capas.push({ id: e.id, px: aPx(new Map([...borde, ...e.m])), oculta: e.oculta });
+  }
+  if (opciones.mano !== false) {
+    const p = punio(!!opciones.guante, def.mano);
+    capas.push({ id: "mano", px: aPx(new Map([...contorno(p), ...p])) });
+  }
+  return capas;
+}
+
+/** Caja [x, y, ancho, alto] de lo visible en reposo (para recortar el ícono). */
+export function cajaArma(capas: CapaArma[]): [number, number, number, number] {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (const c of capas) if (!c.oculta) for (const [x, y, w, h] of c.px) {
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x + w); y1 = Math.max(y1, y + h);
+  }
+  return [x0, y0, x1 - x0, y1 - y0];
+}
+
+/** La capa del arma del héroe: un SVG propio más grande que el cuerpo. */
+function CapaArmaSvg({ id, guante }: { id: string; guante: boolean }) {
+  const capas = capasArma(id, { guante });
+  return (
+    <svg className={`heroe-capa heroe-arma ataque-${tipoAtaque(id)}`} data-arma={id}
+      viewBox={`${VB_ARMA.x} ${VB_ARMA.y} ${VB_ARMA.lado} ${VB_ARMA.lado}`} shapeRendering="crispEdges" aria-hidden="true" focusable="false">
+      {capas.map((c) => (
+        <g key={c.id} className={`arma-${c.id}`} data-capa={c.id}>
+          {c.px.map(([x, y, w, h, col], i) => <rect key={i} x={x} y={y} width={w} height={h} fill={col} />)}
+        </g>
+      ))}
+    </svg>
+  );
+}
 
 // ---- Cosméticos por tier ----
 
@@ -340,7 +538,7 @@ export function HeroeEquipado(props: PropsHeroe) {
           <Pixeles key={a.id} px={a.px} className={`heroe-capa heroe-acc heroe-acc-${a.id}`} data-acc={a.id} />
         ))}
         {capas.arma ? (
-          <Pixeles px={ARMAS[capas.arma].px} className={`heroe-capa heroe-arma ataque-${tipoAtaque(capas.arma)}`} data-arma={capas.arma} />
+          <CapaArmaSvg id={capas.arma} guante={equipo?.armadura === "armadura_placas"} />
         ) : (
           <span className="heroe-capa heroe-arma ataque-punio" data-arma="ninguna" aria-hidden="true" />
         )}
@@ -367,10 +565,11 @@ export function IconoEquipable({ id, tam = 64 }: { id: string; tam?: number }) {
   let px: Px[] = [];
   let vb = "6 12 20 20";
   if (ARMAS[id]) {
-    const [x, y, w, h] = ARMAS[id].caja;
+    const capas = capasArma(id, { mano: false });
+    const [x, y, w, h] = cajaArma(capas);
     const lado = Math.max(w, h);
     vb = `${x - (lado - w) / 2} ${y - (lado - h) / 2} ${lado} ${lado}`;
-    px = ARMAS[id].px;
+    px = capas.filter((c) => !c.oculta).flatMap((c) => c.px);
   } else if (ARMADURAS[id]) {
     px = [...MANIQUI, ...ARMADURAS[id].px];
   } else if (ROPAS[id]) {

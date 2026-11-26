@@ -14,7 +14,7 @@ import { Ajustes } from "./pages/Ajustes";
 import { CrearCurso, ProgresoTrabajo } from "./pages/CrearCurso";
 import { Revision } from "./pages/Revision";
 import { Inicio } from "./pages/Inicio";
-import { Jugar } from "./pages/Jugar";
+import { biomaPara, elegirAnfitrion, Jugar } from "./pages/Jugar";
 import { Perfil } from "./pages/Perfil";
 import { Tienda } from "./pages/Tienda";
 
@@ -130,18 +130,32 @@ function Marco() {
 export function pistaDeRuta(ruta: string): Pista {
   if (ruta.startsWith("/final/")) return "final";
   if (ruta.startsWith("/jugar/")) return "nivel";
+  if (ruta.startsWith("/tienda")) return "tienda";
+  if (ruta.startsWith("/perfil")) return "perfil";
   return "mapa";
+}
+
+/** Bioma del nivel de una ruta /jugar/:id (el mismo fondo que pinta Jugar), o null si no es un nivel. */
+export function biomaDeNivelRuta(ruta: string): Bioma | null {
+  const m = /^\/jugar\/([^/?#]+)/.exec(ruta);
+  if (!m) return null;
+  const id = decodeURIComponent(m[1]);
+  return biomaPara(elegirAnfitrion(id), id);
 }
 
 /**
  * Música de fondo del juego (activa por defecto; suena tras el primer toque). Vive fuera del marco para
- * cubrir también /final/demo. Jugar pide "nivel" por su cuenta; pedir la misma pista dos veces no hace nada.
+ * cubrir también /final/demo. Cada fondo tiene su pista: "mapa" sigue al bioma del curso (lo fija Inicio),
+ * los niveles al bioma del nivel (lo fija aquí) y tienda/perfil/jefe la suya. Jugar pide "nivel" por su
+ * cuenta; pedir la misma pista dos veces no hace nada.
  */
 function MusicaDeFondo() {
   const loc = useLocation();
   const { token } = useSesion();
   const enJuego = Boolean(token) || loc.pathname === "/final/demo";
   useEffect(() => {
+    const bn = biomaDeNivelRuta(loc.pathname);
+    if (bn) musica.setBioma(bn, "nivel");
     if (enJuego) musica.reproducir(pistaDeRuta(loc.pathname));
     else musica.detener();
   }, [enJuego, loc.pathname]);

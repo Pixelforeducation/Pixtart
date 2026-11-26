@@ -5,6 +5,7 @@ import { afterEach } from "vitest";
 afterEach(() => {
   cleanup();
   sessionStorage.clear();
+  localStorage.clear();
 });
 
 // jsdom no implementa canvas ni scrollTo: los efectos ya lo toleran; esto solo evita el ruido en consola.

@@ -8,7 +8,7 @@ import { spriteMascota, type Anim, type FichaPersonaje } from "../../arte";
 import { Escena, useIntensidad, type Bioma } from "../../escenas";
 import { menosMovimiento, tocar } from "../../efectos";
 import { Comida } from "../Iconos";
-import { HeroeEquipado, tipoAtaque } from "./HeroeEquipado";
+import { HeroeEquipado, Pixeles, dibujoPx, tipoAtaque, type Px, type TipoAtaque } from "./HeroeEquipado";
 import { Personaje } from "./Personaje";
 
 export type Reaccion = "pregunta" | "acierto" | "error" | "festejo";
@@ -93,7 +93,7 @@ export function EscenaNivel({ bioma, anfitrion, reaccion, enunciado, idEnunciado
 
   return (
     <Escena bioma={bioma} intensidad={intensidad} className={`jg-escena jg-reac-${reaccion}`}>
-      <div className="jg-escenario">
+      <div className={`jg-escenario ${quien === "heroe" && arma === "martillazo" ? "jg-sacudida-martillo" : ""}`}>
         <div className="jg-globo" ref={enfoque} tabIndex={-1} onClick={saltar}>
           <span className="jg-globo-nombre">{anfitrion.nombre}</span>
           <p className="jg-enunciado">
@@ -147,13 +147,112 @@ export function EscenaNivel({ bioma, anfitrion, reaccion, enunciado, idEnunciado
   );
 }
 
-/** Capa de efectos del ataque del héroe según su arma (CSS puro, ver juego.css «Ataques»). */
-function EfectoAtaque({ tipo }: { tipo: ReturnType<typeof tipoAtaque> }) {
+// ---- Efectos de ataque en pixel art (CSS en juego.css «Ataques»). Todos miran a la izquierda (al anfitrión). ----
+
+const FX_COL = { W: "#FFFFFF", L: "#D6E6FF", S: "#A3A3AE", B: "#D9A066", R: "#E04848", Y: "#FFE27A", G: "#F2C230",
+  C: "#C69CFF", V: "#8A5AE8", P: "#6B3FD6", F: "#F0C08A", f: "#C8905A", D: "#D8D0B8", d: "#A39A80", c: "#9FE7FF" };
+
+const FLECHA: readonly string[] = [
+  "..W............RR.RR",
+  ".WS...........RR.RR.",
+  "WSSBBBBBBBBBBBBBBBBB",
+  ".WS...........RR.RR.",
+  "..W............RR.RR",
+];
+const ORBE: readonly string[] = [
+  "...PPPPP...",
+  "..PCCCCCP..",
+  ".PCWWCCCVP.",
+  "PCWWCCCCVVP",
+  "PCWCCCCCVVP",
+  "PCCCCCCVVVP",
+  "PCCCCCVVVVP",
+  "PVCCCVVVVVP",
+  ".PVVVVVVVP.",
+  "..PVVVVVP..",
+  "...PPPPP...",
+];
+const PUNIO: readonly string[] = [
+  "..FFFFFF...",
+  ".FWFFFFFFRR",
+  "FFFFFFFFFRR",
+  "FfFfFfFFFRR",
+  "FFFFFFFFFRR",
+  ".FFFFFFFfRR",
+  "..ffffff...",
+];
+const DESTELLO: readonly string[] = ["...Y...", "...Y...", "..YWY..", "YYWWWYY", "..YWY..", "...Y...", "...Y..."];
+const POLVO: readonly string[] = [".DDD..", "DDDDD.", "DDdDDD", ".ddddd"];
+
+/** Media luna del tajo de espada (abre hacia la izquierda, gruesa al centro y fina en las puntas). */
+function mediaLuna(): string[] {
+  const R = 13, filas: string[] = [];
+  for (let y = 0; y <= 2 * R; y++) {
+    let f = "";
+    for (let x = 0; x <= 2 * R; x++) {
+      const dx = x - R, dy = y - R, d = Math.hypot(dx, dy);
+      const ang = Math.atan2(dy, -dx); // 0 = hacia la izquierda
+      const grosor = 4.2 * Math.cos(ang) - 0.6;
+      f += Math.abs(ang) < 1.45 && d <= R + 0.4 && d >= R + 0.4 - grosor ? (d >= R - 1 ? "W" : "c") : ".";
+    }
+    filas.push(f);
+  }
+  return filas;
+}
+/** Tajo recto de katana: diagonal "\" o "/" o línea horizontal. */
+function corte(tipo: "\\" | "/" | "-"): string[] {
+  const N = 26, filas: string[] = [];
+  for (let y = 0; y < N; y++) {
+    let f = "";
+    for (let x = 0; x < N; x++) {
+      const i = tipo === "/" ? N - 1 - x : x;
+      const enLinea = tipo === "-" ? y === 12 || (y === 13 && x > 3 && x < N - 4) : (y === i || y === i + 1) && i > 1 && i < N - 2;
+      f += enLinea ? (tipo === "-" ? (y === 12 ? "W" : "c") : y === i ? "W" : "c") : ".";
+    }
+    filas.push(f);
+  }
+  return filas;
+}
+
+const SPRITES_FX = (() => {
+  const px = (f: readonly string[], borde: string | null = "#1B1F3B") => dibujoPx(f, FX_COL, borde);
+  return {
+    flecha: { px: px(FLECHA), vb: "0 0 22 7" },
+    orbe: { px: px(ORBE, "#2B1460"), vb: "0 0 13 13" },
+    punio: { px: px(PUNIO), vb: "0 0 13 9" },
+    destello: { px: px(DESTELLO, null), vb: "1 1 7 7" },
+    polvo: { px: px(POLVO, "#5C4A2E"), vb: "0 0 8 6" },
+    luna: { px: px(mediaLuna(), "#3F7FE0"), vb: "0 0 29 29" },
+    corteA: { px: px(corte("\\"), "#3F7FE0"), vb: "0 0 28 28" },
+    corteB: { px: px(corte("/"), "#3F7FE0"), vb: "0 0 28 28" },
+    corteC: { px: px(corte("-"), "#3F7FE0"), vb: "0 0 28 28" },
+  } satisfies Record<string, { px: Px[]; vb: string }>;
+})();
+
+function Fx({ s, className }: { s: keyof typeof SPRITES_FX; className: string }) {
+  return <Pixeles px={SPRITES_FX[s].px} viewBox={SPRITES_FX[s].vb} className={className} />;
+}
+
+/** Capa de efectos del ataque del héroe según su arma. */
+export function EfectoAtaque({ tipo }: { tipo: TipoAtaque }) {
   return (
-    <span className={`jg-fx jg-fx-${tipo}`} aria-hidden="true">
-      {(tipo === "flecha" || tipo === "orbe") && <span className="jg-fx-proyectil" />}
-      {tipo === "tajo" && <span className="jg-fx-tajo" />}
-      {tipo === "triple" && <><span className="jg-fx-tajo" /><span className="jg-fx-tajo" /><span className="jg-fx-tajo" /></>}
+    <span className={`jg-fx jg-fx-${tipo}`} aria-hidden="true" data-fx={tipo}>
+      {tipo === "punio" && <><Fx s="punio" className="jg-fx-puno" /><span className="jg-fx-onda" /><span className="jg-fx-onda jg-fx-onda2" /></>}
+      {tipo === "tajo" && <Fx s="luna" className="jg-fx-tajo" />}
+      {tipo === "flecha" && <Fx s="flecha" className="jg-fx-proyectil" />}
+      {tipo === "orbe" && <>
+        <Fx s="orbe" className="jg-fx-proyectil" />
+        <Fx s="destello" className="jg-fx-chispa jg-fx-chispa1" /><Fx s="destello" className="jg-fx-chispa jg-fx-chispa2" /><Fx s="destello" className="jg-fx-chispa jg-fx-chispa3" />
+      </>}
+      {tipo === "martillazo" && <>
+        <Fx s="polvo" className="jg-fx-polvo jg-fx-polvo1" /><Fx s="polvo" className="jg-fx-polvo jg-fx-polvo2" />
+        <Fx s="polvo" className="jg-fx-polvo jg-fx-polvo3" /><Fx s="polvo" className="jg-fx-polvo jg-fx-polvo4" />
+        <span className="jg-fx-grieta" />
+      </>}
+      {tipo === "triple" && <>
+        <Fx s="corteA" className="jg-fx-corte jg-fx-corte1" /><Fx s="corteB" className="jg-fx-corte jg-fx-corte2" /><Fx s="corteC" className="jg-fx-corte jg-fx-corte3" />
+        <Fx s="destello" className="jg-fx-chispa jg-fx-chispa1" /><Fx s="destello" className="jg-fx-chispa jg-fx-chispa2" /><Fx s="destello" className="jg-fx-chispa jg-fx-chispa3" />
+      </>}
       <span className="jg-fx-impacto"><i /><i /><i /><i /></span>
     </span>
   );

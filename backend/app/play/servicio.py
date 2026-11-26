@@ -535,7 +535,17 @@ class Juego:
     def _retomar(
         self, it: IntentoNivel, camino: CaminoCurso, nivel: NivelInfo
     ) -> dict[str, Any]:
+        pausada = any(e.get("pausada_en") for e in it.preguntas)
         self._reanudar_reloj(it)
+        i_actual = self._idx_en_curso(it)
+        if not pausada and i_actual is not None:
+            # Se cerró la pestaña sin pausar: la pregunta en curso no se da por perdida, vuelve a
+            # empezar su tiempo (las ya respondidas se quedan como estaban).
+            limite = it.preguntas[i_actual]["tiempo_s"] + (it.segundos_extra or 0)
+            if (self.ahora - serial.utc(it.reloj_desde)).total_seconds() >= limite:
+                it.reloj_desde = self.ahora
+        # La marca «sin ayudas» es del nivel final: al retomar se ajusta al intento que se retoma.
+        self.vidas = replace(self.vidas, nivel_sin_ayudas=bool(it.es_final))
         cache: dict[str, dict[str, PreguntaFuente]] = {}
         jugables, respondidas = [], []
         for e in it.preguntas:

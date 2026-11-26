@@ -465,60 +465,114 @@
 /* =================== Ataques (v0.3, mejoras 4 y 5) ===================
    Al acertar, el héroe ataca al anfitrión con la animación de su arma; al fallar, el anfitrión embiste.
    --jg-int (0..1) viene de useIntensidad: "suave" acorta los recorridos; "apagada" o
-   prefers-reduced-motion no pintan el ataque (EscenaNivel no pone las clases). */
-.jg-actores { position: relative; --jg-dist: min(30vw, 190px); --jg-golpe-t: 0.24s; }
+   prefers-reduced-motion no pintan el ataque (EscenaNivel no pone las clases).
+   El arma (.heroe-arma, SVG de HeroeEquipado) se anima en coordenadas SIN espejo: rotate(+) = tajo hacia
+   delante/abajo, translateX(+) = hacia el anfitrión; .jg-heroe-espejo voltea todo después.
+   Puntos de referencia en .jg-actores: el anfitrión está pegado a la izquierda (centro ≈ 48 px) y la mano del
+   héroe a --jg-mano de la derecha (depende de si hay mascota). */
+.jg-actores { position: relative; --jg-dist: min(30vw, 190px); --jg-golpe-t: 0.26s; --jg-mano: 74px; --jg-blanco: 48px; }
+.jg-actores:has(.jg-mascota-actor) { --jg-mano: 142px; }
 .jg-heroe-cuerpo { position: relative; z-index: 2; line-height: 0; }
 .jg-heroe-espejo { display: inline-block; transform: scaleX(-1); } /* mira hacia el anfitrión */
 .jg-heroe-sprite { display: inline-block; }
 .jg-fx { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
-.jg-fx > span { position: absolute; display: block; opacity: 0; }
-.jg-arma-flecha, .jg-arma-orbe { --jg-golpe-t: 0.5s; }
-.jg-arma-martillazo { --jg-golpe-t: 0.36s; }
-.jg-arma-triple { --jg-golpe-t: 0.16s; }
+.jg-fx > span, .jg-fx > svg { position: absolute; display: block; opacity: 0; image-rendering: pixelated; }
+.jg-arma-tajo { --jg-golpe-t: 0.32s; }
+.jg-arma-flecha { --jg-golpe-t: 0.6s; }
+.jg-arma-orbe { --jg-golpe-t: 0.7s; }
+.jg-arma-martillazo { --jg-golpe-t: 0.38s; }
+.jg-arma-triple { --jg-golpe-t: 0.26s; }
 
-.jg-fx-impacto { left: 9%; bottom: 42%; width: 36px; height: 36px; margin-left: -18px;
+/* Estrella de impacto sobre el anfitrión */
+.jg-fx-impacto { left: var(--jg-blanco); bottom: 46px; width: 40px; height: 40px; margin: 0 0 -20px -20px;
   background: radial-gradient(circle, #fff 0 22%, var(--c-moneda3, #FFE27A) 23% 42%, transparent 44%); }
-.jg-fx-impacto i { position: absolute; left: 16px; top: 2px; width: 4px; height: 10px; background: #fff; transform-origin: 2px 16px; }
+.jg-fx-impacto i { position: absolute; left: 18px; top: 0; width: 4px; height: 10px; background: #fff; transform-origin: 2px 20px; }
 .jg-fx-impacto i:nth-child(2) { transform: rotate(90deg); }
 .jg-fx-impacto i:nth-child(3) { transform: rotate(180deg); }
 .jg-fx-impacto i:nth-child(4) { transform: rotate(270deg); }
 
-.jg-fx-proyectil { left: 70%; bottom: 40%; }
-.jg-fx-flecha .jg-fx-proyectil { width: 30px; height: 4px; background: #8A5A2B; box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25); }
-.jg-fx-flecha .jg-fx-proyectil::before { content: ""; position: absolute; left: -8px; top: -4px; border: 6px solid transparent; border-right: 8px solid #D8D8E0; border-left: 0; }
-.jg-fx-flecha .jg-fx-proyectil::after { content: ""; position: absolute; right: -4px; top: -3px; width: 8px; height: 10px; background: #E04848; clip-path: polygon(0 50%, 100% 0, 60% 50%, 100% 100%); }
-.jg-fx-orbe .jg-fx-proyectil { width: 18px; height: 18px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #fff 0 18%, #C69CFF 20% 55%, #6B3FD6 60%); box-shadow: 0 0 12px 4px rgba(170, 120, 255, 0.85); }
-
-.jg-fx-tajo { left: 3%; bottom: 26%; width: 78px; height: 78px; border-radius: 50%;
-  border: 0 solid transparent; border-left: 7px solid #fff; filter: drop-shadow(0 0 4px #9FE7FF); }
+/* Puño: puño pixel + ondas expansivas */
+.jg-fx-puno { left: calc(var(--jg-blanco) + 20px); bottom: 34px; width: 52px; height: 36px; }
+.jg-fx-onda { left: var(--jg-blanco); bottom: 46px; width: 56px; height: 56px; margin: 0 0 -28px -28px; border-radius: 50%;
+  border: 5px solid #fff; box-shadow: 0 0 0 3px var(--c-moneda3, #FFE27A), inset 0 0 0 3px var(--c-moneda3, #FFE27A); }
+/* Espada: media luna de tajo */
+.jg-fx-tajo { left: calc(var(--jg-blanco) - 44px); bottom: 0; width: 104px; height: 104px; filter: drop-shadow(0 0 4px #9FE7FF); }
+/* Arco: flecha; báculo: orbe (salen de la mano / la gema y viajan al anfitrión) */
+.jg-fx-proyectil { left: calc(100% - var(--jg-mano)); bottom: 28px; }
+.jg-fx-flecha .jg-fx-proyectil { width: 66px; height: 21px; filter: drop-shadow(0 2px 0 rgb(0 0 0 / 0.3)); }
+.jg-fx-orbe .jg-fx-proyectil { width: 39px; height: 39px; bottom: 116px; filter: drop-shadow(0 0 8px #C69CFF) drop-shadow(0 0 3px #fff); }
+.jg-fx-chispa { width: 21px; height: 21px; }
+.jg-fx-orbe .jg-fx-chispa { left: calc(100% - var(--jg-mano) - 10px); bottom: 124px; }
+/* Martillo: nubes de polvo y grieta en el suelo */
+.jg-fx-polvo { left: var(--jg-blanco); bottom: 2px; width: 32px; height: 24px; }
+.jg-fx-grieta { left: calc(var(--jg-blanco) - 36px); bottom: 0; width: 72px; height: 6px;
+  background: repeating-linear-gradient(90deg, #1B1F3B 0 6px, transparent 6px 9px, #1B1F3B 9px 12px, transparent 12px 18px); }
+/* Katana: tres tajos en cruz + destellos */
+.jg-fx-corte { left: calc(var(--jg-blanco) - 42px); bottom: 4px; width: 84px; height: 84px; filter: drop-shadow(0 0 3px #9FE7FF); }
+.jg-fx-triple .jg-fx-chispa1 { left: calc(var(--jg-blanco) - 34px); bottom: 74px; }
+.jg-fx-triple .jg-fx-chispa2 { left: calc(var(--jg-blanco) + 22px); bottom: 64px; }
+.jg-fx-triple .jg-fx-chispa3 { left: calc(var(--jg-blanco) - 10px); bottom: 12px; }
 
 @media (prefers-reduced-motion: no-preference) {
   .jg-heroe .jg-heroe-sprite { animation: jg-flota 1.4s steps(2) infinite; }
-  .jg-heroe.jg-salta .jg-heroe-sprite { animation: jg-salto 0.55s cubic-bezier(.3, .7, .4, 1) 0.7s 2; }
+  .jg-heroe.jg-salta .jg-heroe-sprite { animation: jg-salto 0.55s cubic-bezier(.3, .7, .4, 1) 0.95s 2; }
 
-  /* --- el héroe ataca --- */
+  /* --- cuerpo del héroe --- */
   .jg-ataque-heroe .jg-heroe-cuerpo { animation: jg-embiste-izq 0.62s cubic-bezier(.3, .7, .4, 1) both; }
-  .jg-ataque-heroe.jg-arma-triple .jg-heroe-cuerpo { animation: jg-embiste-izq 0.8s cubic-bezier(.3, .7, .4, 1) both; }
-  .jg-ataque-heroe.jg-arma-flecha .jg-heroe-cuerpo,
-  .jg-ataque-heroe.jg-arma-orbe .jg-heroe-cuerpo { animation: jg-dispara 0.4s steps(4) both; }
-  .jg-ataque-heroe.jg-arma-martillazo .jg-heroe-cuerpo { animation: jg-martillo 0.75s cubic-bezier(.3, .7, .4, 1) both; }
-  .jg-ataque-heroe.jg-arma-martillazo { animation: jg-temblor-suave 0.35s steps(6) var(--jg-golpe-t); }
+  .jg-ataque-heroe.jg-arma-tajo .jg-heroe-cuerpo { animation: jg-embiste-izq 0.75s cubic-bezier(.3, .7, .4, 1) both; }
+  .jg-ataque-heroe.jg-arma-triple .jg-heroe-cuerpo { animation: jg-embiste-largo 0.95s cubic-bezier(.3, .7, .4, 1) both; }
+  .jg-ataque-heroe.jg-arma-flecha .jg-heroe-cuerpo { animation: jg-dispara 0.3s steps(3) 0.36s both; }
+  .jg-ataque-heroe.jg-arma-orbe .jg-heroe-cuerpo { animation: jg-conjura 0.9s steps(6) both; }
+  .jg-ataque-heroe.jg-arma-martillazo .jg-heroe-cuerpo { animation: jg-martillo 0.85s cubic-bezier(.3, .7, .4, 1) both; }
 
+  /* --- el arma en la mano (gana a `.heroe-equipado .heroe-fig > .heroe-capa { animation: none }`) --- */
+  .jg-ataque-heroe .jg-heroe .heroe-fig > .heroe-arma { animation: jg-arma-tajo 0.75s cubic-bezier(.4, 0, .2, 1) both; }
+  .jg-ataque-heroe.jg-arma-triple .jg-heroe .heroe-fig > .heroe-arma { animation: jg-arma-triple 0.95s linear both; }
+  .jg-ataque-heroe.jg-arma-flecha .jg-heroe .heroe-fig > .heroe-arma { animation: jg-arma-arco 0.9s steps(1, end) both; }
+  .jg-ataque-heroe.jg-arma-orbe .jg-heroe .heroe-fig > .heroe-arma { animation: jg-arma-baculo 0.9s cubic-bezier(.3, .7, .4, 1) both; }
+  .jg-ataque-heroe.jg-arma-martillazo .jg-heroe .heroe-fig > .heroe-arma { animation: jg-arma-martillo 0.85s cubic-bezier(.5, 0, .3, 1) both; }
+  .jg-ataque-heroe.jg-arma-flecha .heroe-arma .arma-cuerda-tensa,
+  .jg-ataque-heroe.jg-arma-flecha .heroe-arma .arma-flecha-tensa { animation: jg-arco-tensa 0.9s steps(1, end) both; }
+  .jg-ataque-heroe.jg-arma-flecha .heroe-arma .arma-cuerda-suelta { animation: jg-arco-suelta 0.9s steps(1, end) both; }
+  .jg-ataque-heroe.jg-arma-flecha .heroe-arma .arma-flecha-cargada { animation: jg-arco-cargada 0.9s steps(1, end) both; }
+  .jg-ataque-heroe.jg-arma-orbe .heroe-arma .arma-gema-brillo { animation: jg-gema 0.9s steps(1, end) both; }
+
+  /* --- sacudida de escena del martillazo --- */
+  .jg-sacudida-martillo { animation: jg-sacudida calc(0.4s) steps(8) 0.38s; }
+
+  /* --- el anfitrión recibe el golpe --- */
   .jg-ataque-heroe .jg-anfitrion .jg-personaje { animation: jg-golpeado 0.5s steps(6) var(--jg-golpe-t) both; }
-  .jg-ataque-heroe.jg-arma-triple .jg-anfitrion .jg-personaje { animation: jg-golpeado 0.24s steps(4) var(--jg-golpe-t) 3; }
+  .jg-ataque-heroe.jg-arma-triple .jg-anfitrion .jg-personaje { animation: jg-golpeado 0.15s steps(3) var(--jg-golpe-t) 3; }
   .jg-ataque-heroe.jg-arma-martillazo .jg-anfitrion .jg-personaje { animation: jg-aplastado 0.55s steps(6) var(--jg-golpe-t) both; }
 
+  /* --- efectos --- */
   .jg-fx-impacto { animation: jg-impacto 0.36s steps(4) var(--jg-golpe-t) both; }
-  .jg-fx-triple .jg-fx-impacto { animation-duration: 0.24s; animation-iteration-count: 3; }
-  .jg-fx-proyectil { animation: jg-viaja 0.42s linear 0.1s both; }
-  .jg-fx-orbe .jg-fx-proyectil { animation: jg-viaja 0.42s linear 0.1s both, jg-gira 0.3s steps(4) 0.1s 2; }
-  .jg-fx-tajo { animation: jg-tajo 0.28s ease-out 0.18s both; }
-  .jg-fx-triple .jg-fx-tajo:nth-child(1) { animation-delay: 0.12s; }
-  .jg-fx-triple .jg-fx-tajo:nth-child(2) { animation: jg-tajo-rev 0.22s ease-out 0.36s both; }
-  .jg-fx-triple .jg-fx-tajo:nth-child(3) { animation-delay: 0.6s; }
+  .jg-fx-triple .jg-fx-impacto { animation: jg-impacto 0.15s steps(3) var(--jg-golpe-t) 3; }
+  .jg-fx-puno { animation: jg-puno 0.34s steps(4) 0.18s both; }
+  .jg-fx-onda { animation: jg-onda 0.42s steps(5) 0.26s both; }
+  .jg-fx-onda2 { animation-delay: 0.38s; }
+  .jg-fx-tajo { animation: jg-tajo 0.3s steps(5) 0.28s both; }
+  .jg-fx-flecha .jg-fx-proyectil { animation: jg-viaja 0.24s linear 0.38s both; }
+  .jg-fx-orbe .jg-fx-proyectil { animation: jg-viaja-arco 0.34s linear 0.38s both, jg-orbe-carga 0.3s steps(4) 0.06s both; }
+  .jg-fx-orbe .jg-fx-chispa { animation: jg-chispa-sube 0.5s steps(4) 0.1s both; }
+  .jg-fx-orbe .jg-fx-chispa2 { animation-delay: 0.2s; --jg-cx: 18px; }
+  .jg-fx-orbe .jg-fx-chispa3 { animation-delay: 0.3s; --jg-cx: -14px; }
+  .jg-fx-polvo { animation: jg-polvo 0.55s steps(5) 0.38s both; }
+  .jg-fx-polvo1 { --jg-px: -64px; --jg-py: 26px; }
+  .jg-fx-polvo2 { --jg-px: -30px; --jg-py: 44px; }
+  .jg-fx-polvo3 { --jg-px: 30px; --jg-py: 44px; }
+  .jg-fx-polvo4 { --jg-px: 66px; --jg-py: 22px; }
+  .jg-fx-grieta { animation: jg-grieta 0.6s steps(3) 0.38s both; }
+  .jg-fx-corte { animation: jg-corte 0.2s steps(4) both; }
+  .jg-fx-corte1 { animation-delay: 0.26s; }
+  .jg-fx-corte2 { animation-delay: 0.41s; }
+  .jg-fx-corte3 { animation-delay: 0.56s; }
+  .jg-fx-triple .jg-fx-chispa { animation: jg-destella 0.24s steps(3) both; }
+  .jg-fx-triple .jg-fx-chispa1 { animation-delay: 0.3s; }
+  .jg-fx-triple .jg-fx-chispa2 { animation-delay: 0.45s; }
+  .jg-fx-triple .jg-fx-chispa3 { animation-delay: 0.6s; }
 
-  /* --- el anfitrión ataca --- */
+  /* --- el anfitrión ataca (al fallar) --- */
   .jg-ataque-anfitrion .jg-anfitrion .jg-personaje { animation: jg-embiste-der 0.6s cubic-bezier(.3, .7, .4, 1) both; }
   .jg-ataque-anfitrion .jg-heroe-cuerpo { animation: jg-recibe 0.55s steps(6) 0.24s both; }
 }
@@ -532,6 +586,12 @@
   40%, 55% { transform: translateX(calc(var(--jg-dist) * -1 * var(--jg-int, 1))); }
   100% { transform: none; }
 }
+@keyframes jg-embiste-largo {
+  0% { transform: none; }
+  12% { transform: translateX(calc(10px * var(--jg-int, 1))); }
+  26%, 70% { transform: translateX(calc(var(--jg-dist) * -1 * var(--jg-int, 1))); }
+  100% { transform: none; }
+}
 @keyframes jg-embiste-der {
   0% { transform: none; }
   18% { transform: translateX(calc(-10px * var(--jg-int, 1))); }
@@ -539,23 +599,79 @@
   100% { transform: none; }
 }
 @keyframes jg-dispara { 0%, 100% { transform: none; } 30% { transform: translateX(calc(8px * var(--jg-int, 1))) scale(1.05, 0.95); } }
+@keyframes jg-conjura {
+  0%, 100% { transform: none; }
+  20%, 50% { transform: translateY(calc(-10px * var(--jg-int, 1))); filter: drop-shadow(0 0 6px #C69CFF); }
+  60% { transform: translateX(calc(4px * var(--jg-int, 1))); }
+}
 @keyframes jg-martillo {
   0% { transform: none; }
-  30% { transform: translate(calc(var(--jg-dist) * -0.6 * var(--jg-int, 1)), calc(-44px * var(--jg-int, 1))) rotate(-12deg); }
-  48%, 60% { transform: translateX(calc(var(--jg-dist) * -0.85 * var(--jg-int, 1))) scale(1.1, 0.9); }
+  30% { transform: translate(calc(var(--jg-dist) * -0.6 * var(--jg-int, 1)), calc(-48px * var(--jg-int, 1))); }
+  45%, 62% { transform: translateX(calc(var(--jg-dist) * -0.85 * var(--jg-int, 1))) scale(1.12, 0.88); }
   100% { transform: none; }
 }
+/* Arma (sin espejo). Origen de giro: la mano. */
+@keyframes jg-arma-tajo {
+  0% { transform: none; }
+  30% { transform: rotate(-65deg); }
+  46% { transform: rotate(125deg); }
+  70% { transform: rotate(118deg); }
+  100% { transform: none; }
+}
+@keyframes jg-arma-triple {
+  0% { transform: none; }
+  20% { transform: rotate(-60deg); }
+  30% { transform: rotate(110deg); }   /* tajo 1 ↘ */
+  38% { transform: rotate(100deg) scaleX(-1); }
+  46% { transform: rotate(-40deg) scaleX(-1); } /* tajo 2 ↗ */
+  54% { transform: rotate(10deg) translateX(-14%); }
+  62% { transform: rotate(90deg) translateX(10%); } /* tajo 3 → */
+  80% { transform: rotate(80deg); }
+  100% { transform: none; }
+}
+@keyframes jg-arma-arco {
+  0% { transform: none; }
+  8% { transform: rotate(-6deg) translateX(-3%); }   /* tensa */
+  42% { transform: translateX(4%); }                 /* suelta */
+  48% { transform: translateX(-2%); }
+  54%, 100% { transform: none; }
+}
+@keyframes jg-arco-tensa { 0% { opacity: 0; } 8% { opacity: 1; } 42%, 100% { opacity: 0; } }
+@keyframes jg-arco-suelta { 0% { opacity: 1; } 8% { opacity: 0; } 42%, 100% { opacity: 1; } }
+@keyframes jg-arco-cargada { 0% { opacity: 1; } 8%, 96% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes jg-arma-baculo {
+  0% { transform: none; }
+  25%, 45% { transform: translateY(-16%) rotate(-8deg); filter: drop-shadow(0 0 4px #8FB8FF) drop-shadow(0 0 10px #C69CFF); }
+  55% { transform: translateY(-8%) rotate(22deg); filter: drop-shadow(0 0 4px #8FB8FF); }
+  100% { transform: none; }
+}
+@keyframes jg-gema { 0% { opacity: 0; } 12% { opacity: 0.6; } 22% { opacity: 1; } 32% { opacity: 0.5; } 40% { opacity: 1; } 56%, 100% { opacity: 0; } }
+@keyframes jg-arma-martillo {
+  0% { transform: none; }
+  32% { transform: rotate(-85deg); }
+  45% { transform: rotate(100deg); }
+  66% { transform: rotate(96deg); }
+  100% { transform: none; }
+}
+@keyframes jg-sacudida {
+  0%, 100% { transform: none; }
+  12% { transform: translate(calc(-6px * var(--jg-int, 1)), calc(4px * var(--jg-int, 1))); }
+  25% { transform: translate(calc(6px * var(--jg-int, 1)), calc(-3px * var(--jg-int, 1))); }
+  37% { transform: translate(calc(-5px * var(--jg-int, 1)), calc(2px * var(--jg-int, 1))); }
+  50% { transform: translate(calc(4px * var(--jg-int, 1)), 0); }
+  75% { transform: translate(calc(-2px * var(--jg-int, 1)), 0); }
+}
 @keyframes jg-golpeado {
-  0%, 100% { transform: none; opacity: 1; }
-  20% { transform: translateX(calc(-16px * var(--jg-int, 1))); opacity: 0.25; }
-  40% { opacity: 1; }
-  60% { transform: translateX(calc(-10px * var(--jg-int, 1))); opacity: 0.25; }
-  80% { opacity: 1; }
+  0%, 100% { transform: none; opacity: 1; filter: none; }
+  20% { transform: translateX(calc(-16px * var(--jg-int, 1))); opacity: 0.35; filter: brightness(2.5); }
+  40% { opacity: 1; filter: none; }
+  60% { transform: translateX(calc(-10px * var(--jg-int, 1))); opacity: 0.35; filter: brightness(2.5); }
+  80% { opacity: 1; filter: none; }
 }
 @keyframes jg-aplastado {
-  0%, 100% { transform: none; opacity: 1; }
-  20% { transform: scale(1.25, 0.6); transform-origin: 50% 100%; opacity: 0.4; }
-  50% { transform: scale(0.9, 1.1); opacity: 1; }
+  0%, 100% { transform: none; opacity: 1; filter: none; }
+  20% { transform: scale(1.25, 0.6); transform-origin: 50% 100%; opacity: 0.5; filter: brightness(2.5); }
+  50% { transform: scale(0.9, 1.1); opacity: 1; filter: none; }
   70% { opacity: 0.4; }
 }
 @keyframes jg-recibe {
@@ -564,9 +680,50 @@
   40%, 80% { transform: translateX(calc(4px * var(--jg-int, 1))); filter: none; }
 }
 @keyframes jg-impacto { 0% { transform: scale(0.2); opacity: 0; } 30% { transform: scale(1.2); opacity: 1; } 100% { transform: scale(1.6); opacity: 0; } }
-@keyframes jg-viaja { 0% { left: 70%; opacity: 0; } 10% { opacity: 1; } 90% { left: 16%; opacity: 1; } 100% { left: 13%; opacity: 0; } }
-@keyframes jg-tajo { 0% { transform: rotate(-70deg) scale(0.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: rotate(80deg) scale(1.1); opacity: 0; } }
-@keyframes jg-tajo-rev { 0% { transform: scaleX(-1) rotate(-70deg) scale(0.6); opacity: 0; } 30% { opacity: 1; } 100% { transform: scaleX(-1) rotate(80deg) scale(1.1); opacity: 0; } }
+@keyframes jg-puno {
+  0% { transform: translateX(60px) scale(0.6); opacity: 0; }
+  40% { transform: translateX(0) scale(1.15); opacity: 1; }
+  75% { transform: translateX(-6px); opacity: 1; }
+  100% { transform: translateX(-6px); opacity: 0; }
+}
+@keyframes jg-onda { 0% { transform: scale(0.3); opacity: 0; } 10% { opacity: 1; } 70% { opacity: 0.9; } 100% { transform: scale(1.7); opacity: 0; } }
+@keyframes jg-tajo {
+  0% { transform: rotate(-50deg) scale(0.7); opacity: 0; clip-path: inset(0 0 100% 0); }
+  20% { opacity: 1; }
+  60% { transform: rotate(0deg) scale(1); opacity: 1; clip-path: inset(0 0 0 0); }
+  100% { transform: rotate(20deg) scale(1.08); opacity: 0; clip-path: inset(0 0 0 0); }
+}
+@keyframes jg-viaja {
+  0% { left: calc(100% - var(--jg-mano)); opacity: 0; }
+  6% { opacity: 1; }
+  92% { left: calc(var(--jg-blanco) - 6px); opacity: 1; }
+  100% { left: calc(var(--jg-blanco) - 14px); opacity: 0; }
+}
+@keyframes jg-viaja-arco {
+  0% { left: calc(100% - var(--jg-mano)); bottom: 116px; opacity: 1; }
+  50% { bottom: 112px; }
+  92% { left: calc(var(--jg-blanco) - 18px); bottom: 30px; opacity: 1; }
+  100% { left: calc(var(--jg-blanco) - 22px); bottom: 26px; opacity: 0; }
+}
+@keyframes jg-orbe-carga { 0% { transform: scale(0); } 80% { transform: scale(1.25); } 100% { transform: none; } }
+@keyframes jg-chispa-sube {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translate(var(--jg-cx, 4px), -30px) scale(1); opacity: 0; }
+}
+@keyframes jg-polvo {
+  0% { transform: translate(-50%, 0) scale(0.4); opacity: 0; }
+  20% { opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--jg-px, 0px)), calc(var(--jg-py, 30px) * -1)) scale(1.3); opacity: 0; }
+}
+@keyframes jg-grieta { 0% { opacity: 0; transform: scaleX(0.3); } 20% { opacity: 1; transform: none; } 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes jg-corte {
+  0% { opacity: 0; clip-path: inset(0 100% 0 0); }
+  25% { opacity: 1; }
+  60% { opacity: 1; clip-path: inset(0 0 0 0); }
+  100% { opacity: 0; clip-path: inset(0 0 0 0); }
+}
+@keyframes jg-destella { 0% { transform: scale(0.3) rotate(0deg); opacity: 0; } 40% { transform: scale(1.3) rotate(45deg); opacity: 1; } 100% { transform: scale(0.6) rotate(90deg); opacity: 0; } }
 
 /* =================== Evolución de mascota (v0.3, mejora 10) =================== */
 .jg-mp-evo { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-family: var(--fuente-pixel); font-size: 7px; }

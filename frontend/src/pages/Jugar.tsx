@@ -14,6 +14,7 @@ import { Cortinilla, type EstadoCortina } from "../components/juego/Cortinilla";
 import { FinNivel } from "../components/juego/FinNivel";
 import { CapaParticulas, alAzar, esCasi, momentos, pausa, siguienteRacha, tocar, useContador, useEfectos } from "../efectos";
 import { mensajeError } from "../lib/validacion";
+import { useAlOcultar } from "../lib/alOcultar";
 import { musica } from "../escenas/musica";
 import "../components/juego/juego.css";
 
@@ -126,6 +127,11 @@ export function Jugar() {
   const [evoluciono, setEvoluciono] = useState<number | null>(null);
   /** Intento sin terminar: se pausa al salir (desmontar o cambiar de nivel). */
   const pendiente = useRef<IntentoIniciado["intento_id"] | null>(null);
+  // Pausa al ocultar la página (cambio de pestaña/app, cerrar, recargar): el reloj se congela aquí y
+  // en el servidor; al volver se resincroniza con el `restante_s` que devuelve el servidor.
+  const [oculta, setOculta] = useState(false);
+  const pausadaAlOcultar = useRef(false);
+  const [sincro, setSincro] = useState(0); // sube para reiniciar el reloj con el tiempo del servidor
 
   const inicio = useRef(Date.now());
   const siguienteBtn = useRef<HTMLButtonElement>(null);
@@ -146,6 +152,7 @@ export function Jugar() {
 
   useEffect(() => {
     let vivo = true;
+    pausadaAlOcultar.current = false;
     setIntento(null); setIdx(0); setResultado(null); setAyudas([]); setFin(null); setCofre(null); setXp(0); setError(null);
     setRacha(0); setMejorRacha(0); setCasi(false); setAciertos(0); setReaccion("pregunta"); setComentario(null); setHerido(false); setGesto("quieta"); setAvisoMascota(null);
     setReanudo(null); setAvisoInicio(null); setEvoluciono(null); setXpAntes(null);
@@ -294,6 +301,36 @@ export function Jugar() {
     return () => window.removeEventListener("keydown", tecla);
   }, [pedirAyuda]);
 
+  // Lo que se ve ahora (para decidir al volver si se resincroniza el reloj).
+  const vista = useRef({ idx, resultado: false, fin: false });
+  vista.current = { idx, resultado: !!resultado, fin: !!fin };
+
+  useAlOcultar(() => {
+    const id = pendiente.current;
+    if (id === null) return; // sin partida en curso (cargando o ya terminada)
+    setOculta(true);
+    if (pausadaAlOcultar.current) return;
+    pausadaAlOcultar.current = true;
+    // También durante el feedback: es inofensivo y evita que el reloj del servidor corra fuera.
+    api.pausar(id, { keepalive: true }).catch(() => {});
+  }, () => {
+    if (!pausadaAlOcultar.current) { setOculta(false); return; }
+    pausadaAlOcultar.current = false;
+    const id = pendiente.current;
+    if (id === null) { setOculta(false); return; }
+    // Retomar en el servidor: descongela el reloj y dice cuánto le queda a la pregunta en curso.
+    api.iniciarNivel(nivelId).then((r) => {
+      if (pendiente.current !== id || String(r.intento_id) !== String(id) || !r.reanudado || !r.progreso) return;
+      const p = restaurarProgreso(r.preguntas, r.progreso);
+      const v = vista.current;
+      if (v.fin || v.resultado || p.completo || p.idx !== v.idx) return;
+      const q = r.preguntas[p.idx];
+      setReanudo({ idx: p.idx, restante: p.restante });
+      if (q) inicio.current = Date.now() - Math.max(0, q.tiempo_s - p.restante) * 1000;
+      setSincro((n) => n + 1);
+    }).catch(() => {}).finally(() => setOculta(false));
+  });
+
   const siguiente = async () => {
     if (!intento) return;
     if (idx + 1 < intento.preguntas.length) {
@@ -377,7 +414,7 @@ export function Jugar() {
           <Combo racha={racha} />
           <ContadorXp ref={xpRef} valor={xpMostrada} golpe={golpeXp} />
         </div>
-        <Temporizador segundos={segundos} total={pregunta.tiempo_s} activo={!resultado && !enviando} clave={pregunta.id} onAgotado={() => responder(null)}
+        <Temporizador key={`t-${pregunta.id}-${sincro}`} segundos={segundos} total={pregunta.tiempo_s} activo={!resultado && !enviando && !oculta} clave={pregunta.id} onAgotado={() => responder(null)}
           onSegundo={(seg) => tocar("tic", seg)} />
       </header>
       {calentamiento && <p className="aviso jg-aviso">Calentamiento: aquí los errores no cuestan vidas.</p>}

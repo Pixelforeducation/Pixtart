@@ -38,8 +38,11 @@ export interface Api {
   equiparMascota(mascotaId: Id): Promise<T.Estado>;
   /** NO está en CONTRATO v0: se supone `POST /juego/paleta {paleta_id}` → Estado. */
   elegirPaleta(paletaId: string): Promise<T.Estado>;
-  /** v0.3: `POST /juego/intentos/{id}/pausar` → 204. Congela el reloj (solo partidas individuales). */
-  pausar(intentoId: Id): Promise<void>;
+  /**
+   * v0.3: `POST /juego/intentos/{id}/pausar` → 204. Congela el reloj (solo partidas individuales).
+   * Con `keepalive` la petición sobrevive a cerrar o recargar la página (`pagehide`).
+   */
+  pausar(intentoId: Id, opciones?: { keepalive?: boolean }): Promise<void>;
   /** v0.3: `POST /juego/equipo {item_id}` → Estado. Pone un arma/armadura/ropa poseída en su ranura. */
   equipar(itemId: string): Promise<T.Estado>;
   /** v0.3: `POST /juego/equipo/quitar {ranura}` → Estado. */
@@ -63,7 +66,7 @@ function mensajeDeDetalle(detalle: unknown, estado: number): string {
   return `Error ${estado}. Inténtalo de nuevo.`;
 }
 
-async function pedir<R>(metodo: string, ruta: string, cuerpo?: unknown): Promise<R> {
+async function pedir<R>(metodo: string, ruta: string, cuerpo?: unknown, keepalive = false): Promise<R> {
   const cabeceras: Record<string, string> = {};
   const token = obtenerToken();
   if (token) cabeceras.Authorization = `Bearer ${token}`;
@@ -75,7 +78,7 @@ async function pedir<R>(metodo: string, ruta: string, cuerpo?: unknown): Promise
   }
   let res: Response;
   try {
-    res = await fetch(`/api${ruta}`, { method: metodo, headers: cabeceras, body });
+    res = await fetch(`/api${ruta}`, { method: metodo, headers: cabeceras, body, ...(keepalive ? { keepalive: true } : {}) });
   } catch {
     throw new ErrorApi(0, "No hay conexión con el servidor.");
   }
@@ -125,7 +128,7 @@ export const apiHttp: Api = {
   usarItem: (item_id) => pedir("POST", "/juego/items/usar", { item_id }),
   equiparMascota: (mascota_id) => pedir("POST", "/juego/mascotas/equipar", { mascota_id }),
   elegirPaleta: (paleta_id) => pedir("POST", "/juego/paleta", { paleta_id }),
-  pausar: (i) => pedir("POST", `/juego/intentos/${i}/pausar`),
+  pausar: (i, o) => pedir("POST", `/juego/intentos/${i}/pausar`, undefined, o?.keepalive ?? false),
   equipar: (item_id) => pedir("POST", "/juego/equipo", { item_id }),
   desequipar: (ranura) => pedir("POST", "/juego/equipo/quitar", { ranura }),
   guardarAjustesJuego: (e) => pedir("POST", "/juego/ajustes", e),

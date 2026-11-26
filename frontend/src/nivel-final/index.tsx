@@ -15,6 +15,7 @@ import { PreguntaVista } from "../components/Pregunta";
 import { Sprite } from "../components/Sprite";
 import { Temporizador } from "../components/Temporizador";
 import { mensajeError } from "../lib/validacion";
+import { useAlOcultar } from "../lib/alOcultar";
 import { guardarSonido, musica, sonidoGuardado, tocar, type Efecto } from "./audio";
 import { crearApiDemo, type ApiFinal } from "./demo";
 import {
@@ -103,6 +104,10 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
   // v0.3 (mejora 2): partida retomada tras una pausa.
   const [reanudo, setReanudo] = useState<{ idx: number; restante: number } | null>(null);
   const pendiente = useRef<IntentoFinal["intento_id"] | null>(null);
+  // Pausa al ocultar la página (pestaña/app, cerrar, recargar); al volver se resincroniza el reloj.
+  const [oculta, setOculta] = useState(false);
+  const pausadaAlOcultar = useRef(false);
+  const [sincro, setSincro] = useState(0);
 
   const lienzo = useRef<HTMLDivElement>(null);
   const vistaRef = useRef<Vista | null>(null);
@@ -115,6 +120,7 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
   // ---- carga del intento (y de la sección para elegir jefe y bioma)
   const cargar = useCallback(() => {
     let vivo = true;
+    pausadaAlOcultar.current = false;
     setFase("cargando"); setIntento(null); setInfo(null); setProg(null); setIdx(0); setMonstruo(null);
     setResultado(null); setFin(null); setCofre(null); setError(null); setFuria(false); setBonus(false);
     setRacha(0); setCritico(false); setCofreAbriendo(false); setReanudo(null);
@@ -311,6 +317,43 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
     void irA(idx + 1, sigue ? actual : null);
   }, [prog, info, intento, bonus, monstruo, idx, irA, cerrar, sfx]);
 
+  // Lo que se ve ahora (para decidir al volver si se resincroniza el reloj).
+  const vista = useRef({ fase, idx });
+  vista.current = { fase, idx };
+
+  useAlOcultar(() => {
+    const id = pendiente.current;
+    const pausar = (api as Partial<Pick<Api, "pausar">>).pausar; // la demo local no pausa
+    if (id === null || !pausar) return;
+    setOculta(true);
+    if (pausadaAlOcultar.current) return;
+    pausadaAlOcultar.current = true;
+    pausar(id, { keepalive: true }).catch(() => {});
+  }, () => {
+    if (!pausadaAlOcultar.current) { setOculta(false); return; }
+    pausadaAlOcultar.current = false;
+    const id = pendiente.current;
+    if (id === null) { setOculta(false); return; }
+    // Retomar en el servidor: descongela el reloj y devuelve lo que le queda a la pregunta en curso.
+    api.iniciarNivel(nivelId).then((r) => {
+      const it = r as IntentoFinal;
+      if (pendiente.current !== id || String(it.intento_id) !== String(id) || !it.reanudado || !it.progreso) return;
+      const sig = it.progreso.respondidas.length;
+      if (sig >= it.preguntas.length) return;
+      const v = vista.current;
+      const enReloj = v.fase === "desafio" && v.idx === sig;
+      // En la intro solo se actualiza lo que le quedará a esa pregunta al empezar.
+      if (!enReloj && v.fase !== "intro") return;
+      const restante = Math.max(0, it.progreso.restante_s);
+      setReanudo({ idx: sig, restante });
+      if (enReloj) {
+        const q = it.preguntas[sig];
+        if (q) inicio.current = Date.now() - Math.max(0, q.tiempo_s - restante) * 1000;
+        setSincro((n) => n + 1);
+      }
+    }).catch(() => {}).finally(() => setOculta(false));
+  });
+
   const seguirBonus = () => { setBonus(true); void irA(idx + 1, null); };
 
   const abrirCofre = async () => {
@@ -450,13 +493,13 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
           <div className="nf-desafio-cab">
             <span className="nf-etq">{monstruo ? `${monstruo.ficha.nombre} · ${TIPO_TXT[monstruo.tipo]}` : "Desafío"}{furia && monstruo?.tipo === "jefe" ? " · ¡FURIA!" : ""}</span>
             {(fase === "desafio" || fase === "resolviendo") && (
-              <Temporizador segundos={reanudo && reanudo.idx === idx ? reanudo.restante : pregunta.tiempo_s} activo={fase === "desafio"} clave={pregunta.id} onAgotado={() => void responder(null)} />
+              <Temporizador key={`t-${pregunta.id}-${sincro}`} segundos={reanudo && reanudo.idx === idx ? reanudo.restante : pregunta.tiempo_s} activo={fase === "desafio" && !oculta} clave={pregunta.id} onAgotado={() => void responder(null)} />
             )}
           </div>
           {fase === "avanzando" ? (
             <p className="nf-avanza">Avanzando…</p>
           ) : (
-            <PreguntaVista pregunta={pregunta} resultado={resultado} onResponder={(r) => void responder(r)} enviando={fase === "resolviendo"} />
+            <PreguntaVista key={pregunta.id} pregunta={pregunta} resultado={resultado} onResponder={(r) => void responder(r)} enviando={fase === "resolviendo"} />
           )}
           {error && <p className="error" role="alert">{error}</p>}
           {fase === "feedback" && resultado && (

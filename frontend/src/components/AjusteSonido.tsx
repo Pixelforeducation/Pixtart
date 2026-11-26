@@ -27,7 +27,7 @@ export function AjusteSonido() {
       </label>
       <label className="casilla">
         <input type="checkbox" checked={m.activa} onChange={() => m.setActiva(!m.activa)} />
-        <span><strong>Música de fondo</strong> · chiptune en el mapa, los niveles y el jefe{s.activo ? "" : " (silenciada con los efectos)"}</span>
+        <span><strong>Música de fondo</strong> · chiptune distinto en cada mundo y con el jefe{s.activo ? "" : " (silenciada con los efectos)"}</span>
       </label>
       <label className="campo">
         <span>Volumen de la música</span>

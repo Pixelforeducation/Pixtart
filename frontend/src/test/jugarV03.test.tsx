@@ -1,7 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { Jugar, restaurarProgreso } from "../pages/Jugar";
 import { guardarToken } from "../api/sesion";
 import { crearMock } from "../api/mock";
@@ -28,6 +28,15 @@ function montar(api: Api) {
     </MemoryRouter>,
   );
 }
+
+/** Simula ocultar/mostrar la página (cambio de pestaña/app o móvil suspendido). */
+function verPagina(visible: boolean) {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => (visible ? "visible" : "hidden") });
+  act(() => { document.dispatchEvent(new Event("visibilitychange")); });
+}
+afterEach(() => {
+  Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "visible" });
+});
 
 async function responderClorofila(u: ReturnType<typeof userEvent.setup>) {
   await u.click(await screen.findByRole("button", { name: /Clorofila/ }));
@@ -117,6 +126,44 @@ describe("Jugar v0.3", () => {
     expect(screen.getByText("La fotosíntesis libera oxígeno.", { selector: ".sr-only" })).toBeInTheDocument();
   });
 
+  it("al ocultar la página pausa con keepalive y al volver retoma con el tiempo del servidor", async () => {
+    guardarToken("t");
+    let t = 1_000_000;
+    const api = crearMock({ ahora: () => t });
+    const pausar = vi.spyOn(api, "pausar");
+    const iniciar = vi.spyOn(api, "iniciarNivel");
+    montar(api);
+    await screen.findByRole("button", { name: /Clorofila/ });
+    const intento = await iniciar.mock.results[0].value;
+    const total = intento.preguntas[0].tiempo_s as number;
+    t += 12_000; // 12 s contestando
+    verPagina(false);
+    expect(pausar).toHaveBeenCalledWith(intento.intento_id, { keepalive: true });
+    t += 600_000; // 10 min fuera: no cuentan
+    verPagina(true);
+    await waitFor(() => expect(iniciar).toHaveBeenCalledTimes(2));
+    const m = Math.floor((total - 12) / 60);
+    const sg = String((total - 12) % 60).padStart(2, "0");
+    await waitFor(() => expect(screen.getByRole("timer")).toHaveAccessibleName(`Tiempo restante ${m}:${sg}`));
+    expect(screen.getByText("1/2")).toBeInTheDocument();
+    // Volver a ocultar solo pausa una vez por ocultación.
+    verPagina(false);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(pausar).toHaveBeenCalledTimes(2);
+    verPagina(true);
+  });
+
+  it("no pausa al ocultar si la partida aún no empezó a cargarse", async () => {
+    guardarToken("t");
+    const api = crearMock();
+    const pausar = vi.spyOn(api, "pausar");
+    vi.spyOn(api, "iniciarNivel").mockReturnValue(new Promise(() => {}));
+    montar(api);
+    verPagina(false);
+    expect(pausar).not.toHaveBeenCalled();
+    verPagina(true);
+  });
+
   it("no alcanzar el mínimo muestra la pantalla de reintento y reinicia el nivel", async () => {
     guardarToken("t");
     // Los calentamientos no exigen mínimo: aquí el nivel 100 se trata como lección.
@@ -165,5 +212,29 @@ describe("NivelFinal v0.3: pausa y reanudación", () => {
     expect(await screen.findByRole("timer")).toHaveAccessibleName("Tiempo restante 0:07");
     r.unmount();
     expect(pausar).toHaveBeenCalledTimes(1);
+  });
+
+  it("al ocultar la página pausa y al volver sincroniza el reloj del desafío", async () => {
+    const demo = crearApiDemo();
+    const base = await demo.iniciarNivel("demo");
+    const pausar = vi.fn((_id: unknown, _o?: { keepalive?: boolean }) => Promise.resolve());
+    let restante = 7;
+    const iniciarNivel = vi.fn(async () => ({
+      ...base,
+      final: undefined,
+      reanudado: true,
+      progreso: { respondidas: [{ pregunta_id: base.preguntas[0].id, correcta: true, xp_ganada: 10 }], restante_s: restante, xp_ganada: 10 },
+    }));
+    const api: ApiFinal & { pausar: typeof pausar } = { ...demo, pausar, iniciarNivel };
+    const u = userEvent.setup();
+    renderCon(<NivelFinal modoInicial="sin-canvas" api={api} />, { ruta: "/final/7", patron: "/final/:nivelId" });
+    await u.click(await screen.findByRole("button", { name: "¡A la aventura!" }));
+    expect(await screen.findByRole("timer")).toHaveAccessibleName("Tiempo restante 0:07");
+    verPagina(false);
+    expect(pausar).toHaveBeenCalledWith(base.intento_id, { keepalive: true });
+    restante = 4;
+    verPagina(true);
+    await waitFor(() => expect(screen.getByRole("timer")).toHaveAccessibleName("Tiempo restante 0:04"));
+    expect(iniciarNivel).toHaveBeenCalledTimes(2);
   });
 });

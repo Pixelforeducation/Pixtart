@@ -386,3 +386,15 @@ def test_crear_tablas_idempotente():
     )
     assert crear_tablas(engine) == 0
     assert crear_tablas(engine) == 0
+
+
+def test_retomar_sin_pausa_no_agota_la_pregunta(entorno):
+    """Cerrar la pestaña sin pausar: al volver la pregunta en curso tiene su tiempo completo."""
+    e = entorno
+    datos = _iniciar(e, "C1L1")
+    e.reloj.avanzar(hours=2)
+    rei = _iniciar(e, "C1L1")
+    assert rei["reanudado"] is True
+    assert rei["progreso"]["respondidas"] == []
+    assert rei["progreso"]["restante_s"] > 0
+    assert rei["intento_id"] == datos["intento_id"]
