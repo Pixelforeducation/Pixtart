@@ -22,6 +22,7 @@ from app.play.fuente_cursos import (
     SeccionInfo,
 )
 from app.play.pista import GeneradorPistaFalso
+from app.play.revision import GeneradorRevisionFalso
 
 T0 = datetime(2026, 11, 24, 15, 0, tzinfo=UTC)
 TIEMPO_S = 30
@@ -29,13 +30,13 @@ T = TipoPregunta
 
 
 def _preguntas(nivel: str) -> list[PreguntaFuente]:
-    """10 preguntas: 0 MC, 1 VF, 2 numérica, 3 abierta (con pista), 4 fill, 5-9 MC."""
+    """10 preguntas: 0 MC, 1 VF, 2 numérica, 3 abierta, 4 matemática, 5-9 MC."""
     ps = [
         Pregunta(f"{nivel}-0", T.MULTIPLE_CHOICE, "¿2+1?", 2, ("1", "2", "3", "4")),
         Pregunta(f"{nivel}-1", T.TRUE_FALSE, "¿El cielo es azul?", True, ("V", "F")),
         Pregunta(f"{nivel}-2", T.NUMERIC, "¿pi?", 3.14, tolerancia=0.01),
         Pregunta(f"{nivel}-3", T.OPEN, "Explica X", "Porque Y", pista="Piensa en Y"),
-        Pregunta(f"{nivel}-4", T.FILL_TEXT, "Capital de Francia", ("París",)),
+        Pregunta(f"{nivel}-4", T.MATH_PROBLEM, "Resuelve 6 × 7", "42"),
     ] + [
         Pregunta(f"{nivel}-{i}", T.MULTIPLE_CHOICE, f"P{i}", 1, ("a", "b", "c")) for i in range(5, 10)
     ]
@@ -43,9 +44,9 @@ def _preguntas(nivel: str) -> list[PreguntaFuente]:
 
 
 CORRECTAS = {
-    0: 2, 1: True, 2: 3.14, 3: True, 4: "parís", **{i: 1 for i in range(5, 10)},
+    0: 2, 1: True, 2: 3.14, 3: True, 4: True, **{i: 1 for i in range(5, 10)},
 }
-INCORRECTAS = {0: 0, 1: False, 2: 99, 3: False, 4: "Roma", **{i: 0 for i in range(5, 10)}}
+INCORRECTAS = {0: 0, 1: False, 2: 99, 3: False, 4: False, **{i: 0 for i in range(5, 10)}}
 
 LECCIONES = [f"L{i}" for i in range(1, 7)]
 
@@ -83,6 +84,7 @@ def entorno(client, db):
     fuente = FuenteCursosMemoria([_curso("C1", u1.id), _curso("C9", u1.id, publicado=False)])
     reloj = Reloj()
     gen = GeneradorPistaFalso("Pista de la IA")
+    revisor = GeneradorRevisionFalso("Buen procedimiento.")
 
     def usuario_test(request: Request) -> Usuario:
         uid = request.headers.get("x-usuario")
@@ -95,12 +97,13 @@ def entorno(client, db):
     app.dependency_overrides[deps.ahora] = lambda: reloj.t
     app.dependency_overrides[deps.rng] = lambda: random.Random(7)
     app.dependency_overrides[deps.generador_pista] = lambda: gen
+    app.dependency_overrides[deps.generador_revision] = lambda: revisor
 
     class E:
         pass
 
     e = E()
-    e.client, e.db, e.reloj, e.gen, e.fuente = client, db, reloj, gen, fuente
+    e.client, e.db, e.reloj, e.gen, e.revisor, e.fuente = client, db, reloj, gen, revisor, fuente
     e.h1, e.h2 = {"x-usuario": u1.id}, {"x-usuario": u2.id}
     e.u1 = u1
     return e
@@ -196,7 +199,7 @@ def test_iniciar_no_filtra_respuesta(entorno):
     for p in datos["preguntas"]:
         claves = {"id", "tipo", "enunciado", "opciones", "dificultad", "tiempo_s",
                   "es_calentamiento"}
-        if p["tipo"] == "open":
+        if p["tipo"] in ("open", "math_problem", "proof"):
             claves.add("explicacion")
         assert set(p) == claves
         assert p["tiempo_s"] == TIEMPO_S and p["es_calentamiento"] is False
@@ -364,6 +367,55 @@ def test_legendaria_pista_ia_con_y_sin_key(entorno, monkeypatch):
     datos = _iniciar(e, "C1L1")
     r = _ayuda(e, datos["intento_id"], _pregunta_de(datos, 3)).json()
     assert r["datos"] == {"pista": "Piensa en Y"}
+
+
+def test_revisar_respuesta_matematica_con_foto(entorno, monkeypatch):
+    e = entorno
+    monkeypatch.setattr(keys, "obtener_key_descifrada", lambda db, uid: "sk-falsa")
+    monkeypatch.setattr(keys, "verificar_limite", lambda db, uid, ahora=None: None)
+    usos = []
+    monkeypatch.setattr(
+        keys, "registrar_uso", lambda db, uid, a, b, ahora=None: usos.append(a + b)
+    )
+    datos = _iniciar(e, "C1L1")
+    pid = _pregunta_de(datos, 4)
+    r = e.client.post(
+        f"/api/juego/intentos/{datos['intento_id']}/revisar",
+        data={"pregunta_id": pid, "respuesta": "Mi procedimiento está en la foto."},
+        files={"imagen": ("procedimiento.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+        headers=e.h1,
+    )
+    assert r.status_code == 200 and r.json() == {"retroalimentacion": "Buen procedimiento."}
+    assert e.revisor.llamadas == [
+        ("claude-sonnet-5-5", "Mi procedimiento está en la foto.", "image/png", b"\x89PNG\r\n\x1a\n")
+    ]
+    assert usos == [70]
+
+
+def test_revisar_respuesta_abierta_requiere_api_key(entorno, monkeypatch):
+    e = entorno
+    datos = _iniciar(e, "C1L1")
+    monkeypatch.setattr(keys, "obtener_key_descifrada", lambda db, uid: None)
+    r = e.client.post(
+        f"/api/juego/intentos/{datos['intento_id']}/revisar",
+        data={"pregunta_id": _pregunta_de(datos, 3), "respuesta": "Una idea."},
+        headers=e.h1,
+    )
+    assert r.status_code == 409 and "API key" in r.json()["detail"]
+
+
+def test_revisar_rechaza_imagen_fuera_de_problema_matematico(entorno, monkeypatch):
+    e = entorno
+    monkeypatch.setattr(keys, "obtener_key_descifrada", lambda db, uid: "sk-falsa")
+    monkeypatch.setattr(keys, "verificar_limite", lambda db, uid, ahora=None: None)
+    datos = _iniciar(e, "C1L1")
+    r = e.client.post(
+        f"/api/juego/intentos/{datos['intento_id']}/revisar",
+        data={"pregunta_id": _pregunta_de(datos, 3), "respuesta": "Intento."},
+        files={"imagen": ("procedimiento.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+        headers=e.h1,
+    )
+    assert r.status_code == 409 and "problemas matemáticos" in r.json()["detail"]
 
 
 def test_timeout_de_servidor(entorno):

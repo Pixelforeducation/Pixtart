@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import type { Ayuda, PreguntaJugable, RespuestaPregunta, ResultadoRespuesta, TipoPregunta } from "../api";
 
 export const ABIERTAS: TipoPregunta[] = ["open", "math_problem", "proof"];
@@ -26,12 +26,13 @@ interface Props {
   ayudas?: Ayuda[];
   resultado?: ResultadoRespuesta | null;
   onResponder: (r: RespuestaPregunta) => void;
+  onRevisar?: (respuesta: string, imagen?: File) => Promise<string>;
   enviando?: boolean;
   /** false cuando el enunciado lo muestra otro (p. ej. el globo del anfitrión en la escena). */
   mostrarEnunciado?: boolean;
 }
 
-export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onResponder, enviando = false, mostrarEnunciado = true }: Props) {
+export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onResponder, onRevisar, enviando = false, mostrarEnunciado = true }: Props) {
   const ay = useMemo(() => resumirAyudas(ayudas), [ayudas]);
   const bloqueada = !!resultado || enviando;
   const titulo = useRef<HTMLParagraphElement>(null);
@@ -58,7 +59,8 @@ export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onRespo
         <Ordenar opciones={pregunta.opciones ?? []} fijos={ay.fijos} bloqueada={bloqueada} semilla={String(pregunta.id)} onResponder={onResponder} />
       )}
       {ABIERTAS.includes(pregunta.tipo) && (
-        <Abierta explicacion={pregunta.explicacion ?? null} bloqueada={bloqueada} onResponder={onResponder} />
+        <Abierta tipo={pregunta.tipo} explicacion={pregunta.explicacion ?? null} bloqueada={bloqueada}
+          onResponder={onResponder} onRevisar={onRevisar} />
       )}
     </section>
   );
@@ -232,15 +234,104 @@ export function Ordenar({ opciones, fijos, bloqueada, semilla, onResponder }: {
   );
 }
 
-function Abierta({ explicacion, bloqueada, onResponder }: { explicacion: string | null; bloqueada: boolean; onResponder: (r: boolean) => void }) {
+function Abierta({ tipo, explicacion, bloqueada, onResponder, onRevisar }: {
+  tipo: TipoPregunta;
+  explicacion: string | null;
+  bloqueada: boolean;
+  onResponder: (r: boolean) => void;
+  onRevisar?: (respuesta: string, imagen?: File) => Promise<string>;
+}) {
   const [texto, setTexto] = useState("");
   const [visto, setVisto] = useState(false);
+  const [imagen, setImagen] = useState<File | null>(null);
+  const [retroalimentacion, setRetroalimentacion] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [revisando, setRevisando] = useState(false);
+  const vistaImagen = useMemo(
+    () => imagen && typeof URL.createObjectURL === "function" ? URL.createObjectURL(imagen) : null,
+    [imagen],
+  );
+  useEffect(() => () => { if (vistaImagen) URL.revokeObjectURL(vistaImagen); }, [vistaImagen]);
+
+  const elegirImagen = (archivo: File | undefined) => {
+    if (archivo && archivo.size > 5 * 1024 * 1024) {
+      setError("La foto no puede superar los 5 MB.");
+    } else if (archivo && ["image/jpeg", "image/png", "image/webp"].includes(archivo.type)) {
+      setImagen(archivo);
+      setError(null);
+    } else if (archivo) {
+      setError("Usa una imagen JPG, PNG o WebP.");
+    }
+  };
+  const pegarImagen = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    if (tipo !== "math_problem") return;
+    const archivo = Array.from(e.clipboardData.items)
+      .find((item) => item.type.startsWith("image/"))?.getAsFile();
+    if (archivo) {
+      e.preventDefault();
+      elegirImagen(archivo);
+    }
+  };
+  const revisar = async () => {
+    if (!onRevisar || revisando || (!texto.trim() && !imagen)) return;
+    setRevisando(true);
+    setError(null);
+    try {
+      setRetroalimentacion(await onRevisar(texto.trim(), imagen ?? undefined));
+      setVisto(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo revisar la respuesta.");
+    } finally {
+      setRevisando(false);
+    }
+  };
+
   return (
-    <div>
-      <label htmlFor="resp-abierta">Tu respuesta (para ti; no se corrige sola)</label>
-      <textarea id="resp-abierta" value={texto} onChange={(e) => setTexto(e.target.value)} disabled={visto || bloqueada} rows={6} />
+    <div className="jg-abierta">
+      <label htmlFor="resp-abierta">Escribe tu respuesta o procedimiento</label>
+      <textarea id="resp-abierta" value={texto} onChange={(e) => setTexto(e.target.value)}
+        onPaste={pegarImagen} disabled={visto || bloqueada || revisando} rows={6}
+        maxLength={12000}
+        placeholder="Escribe aquí tu respuesta..." />
+      {tipo === "math_problem" && !visto && !bloqueada && (
+        <div className="jg-foto-acciones">
+          <label htmlFor="foto-procedimiento" className="boton secundario jg-foto-boton">
+            <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" shapeRendering="crispEdges">
+              <path fill="currentColor" d="M2 4h3l1-2h4l1 2h3v10H2z" />
+              <path fill="var(--c-madera)" d="M3 5h10v8H3zM7 3h2v1H7z" />
+              <path fill="currentColor" d="M6 6h4v1H6zM5 7h1v3H5zM10 7h1v3h-1zM6 10h4v1H6z" />
+            </svg>
+            Adjuntar foto
+          </label>
+          <input id="foto-procedimiento" type="file" accept="image/jpeg,image/png,image/webp"
+            className="sr-only" onChange={(e) => { elegirImagen(e.target.files?.[0]); e.target.value = ""; }} />
+          <span className="ayuda-campo">También puedes pegar una imagen en el recuadro.</span>
+        </div>
+      )}
+      {imagen && vistaImagen && (
+        <figure className="jg-foto-vista">
+          <img src={vistaImagen} alt="Procedimiento adjunto" />
+          {!visto && !bloqueada && <button type="button" className="boton chico secundario"
+            onClick={() => setImagen(null)}>Quitar foto</button>}
+        </figure>
+      )}
+      {imagen && !vistaImagen && <p className="ayuda-campo">Foto adjunta: {imagen.name}</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      {retroalimentacion && (
+        <div className="jg-revision-ia" role="status">
+          <h3>Revisión de tu procedimiento</h3>
+          <p>{retroalimentacion}</p>
+        </div>
+      )}
       {!visto ? (
-        <p style={{ marginTop: 12 }}><button type="button" className="boton" onClick={() => setVisto(true)}>Ver explicación</button></p>
+        <div className="jg-acciones">
+          {onRevisar && <button type="button" className="boton jg-responder"
+            disabled={bloqueada || revisando || (!texto.trim() && !imagen)} onClick={() => void revisar()}>
+            {revisando ? "Revisando…" : "Enviar para revisión"}
+          </button>}
+          <button type="button" className="boton secundario" disabled={revisando}
+            onClick={() => setVisto(true)}>Ver explicación</button>
+        </div>
       ) : (
         <div className="panel oscuro" style={{ marginTop: 12 }}>
           <h3>Explicación</h3>

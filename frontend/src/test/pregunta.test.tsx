@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { PreguntaJugable } from "../api";
@@ -7,6 +7,8 @@ import { Temporizador } from "../components/Temporizador";
 import { Mascota } from "../components/Mascota";
 
 const mc: PreguntaJugable = { id: 1, tipo: "multiple_choice", enunciado: "¿Qué pigmento?", opciones: ["Hemoglobina", "Clorofila", "Melanina"], dificultad: 2, tiempo_s: 30 };
+const abierta: PreguntaJugable = { id: 2, tipo: "open", enunciado: "Explica tu respuesta.", dificultad: 2, tiempo_s: 30, explicacion: "Una explicación breve." };
+const matematica: PreguntaJugable = { id: 3, tipo: "math_problem", enunciado: "Resuelve 6 × 7.", dificultad: 2, tiempo_s: 900, explicacion: "6 × 7 = 42." };
 
 describe("Pregunta de opción múltiple", () => {
   it("responde con el índice elegido", async () => {
@@ -31,6 +33,31 @@ describe("Pregunta de opción múltiple", () => {
     render(<PreguntaVista pregunta={mc} onResponder={() => {}} resultado={{ correcta: false, respuesta_correcta: 1, explicacion: "", vidas: 9, mascota: null, xp_ganada: 0 }} />);
     expect(screen.getByRole("button", { name: /Clorofila/ })).toHaveClass("correcta");
     expect(screen.queryByRole("button", { name: "Responder" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Preguntas abiertas", () => {
+  it("muestra el recuadro de respuesta y permite enviarla a revisión", async () => {
+    const onRevisar = vi.fn(async () => "Buen razonamiento.");
+    render(<PreguntaVista pregunta={abierta} onResponder={() => {}} onRevisar={onRevisar} />);
+    const u = userEvent.setup();
+    const campo = screen.getByRole("textbox", { name: "Escribe tu respuesta o procedimiento" });
+    await u.type(campo, "Mi respuesta");
+    await u.click(screen.getByRole("button", { name: "Enviar para revisión" }));
+    expect(onRevisar).toHaveBeenCalledWith("Mi respuesta", undefined);
+    expect(await screen.findByText("Buen razonamiento.")).toBeInTheDocument();
+  });
+
+  it("permite pegar una imagen en problemas matemáticos y enviarla para revisión", async () => {
+    const onRevisar = vi.fn(async () => "El procedimiento está correcto.");
+    render(<PreguntaVista pregunta={matematica} onResponder={() => {}} onRevisar={onRevisar} />);
+    const archivo = new File(["imagen"], "procedimiento.png", { type: "image/png" });
+    fireEvent.paste(screen.getByRole("textbox", { name: "Escribe tu respuesta o procedimiento" }), {
+      clipboardData: { items: [{ type: "image/png", getAsFile: () => archivo }] },
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Enviar para revisión" }));
+    expect(onRevisar).toHaveBeenCalledWith("", archivo);
+    expect(await screen.findByText("El procedimiento está correcto.")).toBeInTheDocument();
   });
 });
 

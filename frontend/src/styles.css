@@ -256,6 +256,14 @@ input[type="text"], input[type="email"], input[type="password"], input[type="dat
 input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 3px solid var(--foco); outline-offset: 1px; box-shadow: inset 3px 3px 0 #D8CCA8, 0 0 0 6px rgb(255 226 122 / 0.25); }
 input[type="range"] { accent-color: var(--c-moneda); height: 32px; }
 textarea { min-height: 96px; resize: vertical; }
+.jg-abierta textarea { min-height: 150px; font-family: inherit; }
+.jg-foto-acciones { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+.jg-foto-boton { display: inline-flex; align-items: center; gap: 8px; margin: 0; cursor: pointer; }
+.jg-foto-vista { display: grid; justify-items: start; gap: 8px; margin: 12px 0; padding: 10px; background: var(--c-madera); border: 3px solid var(--c-borde); box-shadow: inset 0 0 0 2px var(--c-brillo); }
+.jg-foto-vista img { display: block; max-width: 100%; max-height: 260px; object-fit: contain; image-rendering: auto; }
+.jg-revision-ia { margin-top: 12px; padding: 10px 12px; color: var(--texto-osc); background: var(--pergamino); border: 3px solid var(--c-borde); box-shadow: var(--sombra); }
+.jg-revision-ia h3 { margin: 0 0 6px; font-size: 11px; }
+.jg-revision-ia p { margin: 0; }
 input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--error); box-shadow: 0 0 0 2px var(--error); }
 input[type="checkbox"], input[type="radio"] { width: 22px; height: 22px; accent-color: var(--c-moneda); vertical-align: middle; margin: 0 8px 0 0; flex: none; }
 .casilla { display: flex; align-items: center; font-weight: normal; min-height: 40px; }

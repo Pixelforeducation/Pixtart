@@ -4,7 +4,7 @@ import random
 from datetime import datetime
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -15,9 +15,12 @@ from app.models.usuarios import Usuario
 from app.play import deps
 from app.play.fuente_cursos import FuenteCursos
 from app.play.pista import GeneradorPista
+from app.play.revision import GeneradorRevision
 from app.play.servicio import Juego, NoEncontrado
 
 router = APIRouter(prefix="/api/juego", tags=["juego"])
+MAX_IMAGEN_REVISION = 5 * 1024 * 1024
+TIPOS_IMAGEN_REVISION = {"image/jpeg", "image/png", "image/webp"}
 
 
 def juego(
@@ -27,8 +30,9 @@ def juego(
     ahora: datetime = Depends(deps.ahora),
     rng: random.Random = Depends(deps.rng),
     generador: GeneradorPista = Depends(deps.generador_pista),
+    revisor: GeneradorRevision = Depends(deps.generador_revision),
 ) -> Juego:
-    return Juego(db, usuario, fuente, ahora, rng, generador)
+    return Juego(db, usuario, fuente, ahora, rng, generador, revisor)
 
 
 def _ejecutar(f, *args, **kwargs) -> Any:
@@ -95,6 +99,35 @@ def iniciar(nivel_id: str, j: Juego = Depends(juego)) -> dict[str, Any]:
 @router.post("/intentos/{intento_id}/responder")
 def responder(intento_id: str, cuerpo: Responder, j: Juego = Depends(juego)) -> dict[str, Any]:
     return _ejecutar(j.responder, intento_id, cuerpo.pregunta_id, cuerpo.respuesta, cuerpo.tiempo_ms)
+
+
+@router.post("/intentos/{intento_id}/revisar")
+async def revisar_respuesta(
+    intento_id: str,
+    pregunta_id: str = Form(...),
+    respuesta: str = Form("", max_length=12000),
+    imagen: UploadFile | None = File(None),
+    j: Juego = Depends(juego),
+) -> dict[str, str]:
+    mime: str | None = None
+    contenido: bytes | None = None
+    if imagen is not None:
+        mime = imagen.content_type
+        if mime not in TIPOS_IMAGEN_REVISION:
+            raise HTTPException(415, "La foto debe estar en formato JPG, PNG o WebP.")
+        contenido = await imagen.read(MAX_IMAGEN_REVISION + 1)
+        if len(contenido) > MAX_IMAGEN_REVISION:
+            raise HTTPException(413, "La foto no puede superar los 5 MB.")
+        firma_valida = (
+            (mime == "image/jpeg" and contenido.startswith(b"\xff\xd8\xff"))
+            or (mime == "image/png" and contenido.startswith(b"\x89PNG\r\n\x1a\n"))
+            or (mime == "image/webp" and contenido.startswith(b"RIFF") and contenido[8:12] == b"WEBP")
+        )
+        if not firma_valida:
+            raise HTTPException(415, "El archivo no coincide con el formato de imagen indicado.")
+    return _ejecutar(
+        j.revisar_respuesta, intento_id, pregunta_id, respuesta, mime, contenido
+    )
 
 
 @router.post("/intentos/{intento_id}/pausar", status_code=204)

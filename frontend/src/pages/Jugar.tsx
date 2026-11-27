@@ -431,7 +431,12 @@ export function Jugar() {
         onRevive={refrescar} aviso={avisoMascota} />
 
       <div className="jg-zona" ref={zona} key={pregunta.id}>
-        <PreguntaVista pregunta={pregunta} ayudas={ayudas} resultado={resultado} onResponder={responder} enviando={enviando} mostrarEnunciado={false} />
+        <PreguntaVista pregunta={pregunta} ayudas={ayudas} resultado={resultado} onResponder={responder}
+          onRevisar={async (respuesta, imagen) => {
+            const revision = await api.revisarRespuesta(intento.intento_id, pregunta.id, respuesta, imagen);
+            return revision.retroalimentacion;
+          }}
+          enviando={enviando} mostrarEnunciado={false} />
       </div>
 
       {resultado && (

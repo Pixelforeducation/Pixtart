@@ -29,6 +29,7 @@ export interface Api {
   camino(cursoId: Id): Promise<T.Camino>;
   iniciarNivel(nivelId: Id): Promise<T.IntentoIniciado>;
   responder(intentoId: Id, e: { pregunta_id: Id; respuesta: T.RespuestaPregunta | null; tiempo_ms: number }): Promise<T.ResultadoRespuesta>;
+  revisarRespuesta(intentoId: Id, preguntaId: Id, respuesta: string, imagen?: File): Promise<{ retroalimentacion: string }>;
   ayuda(intentoId: Id, preguntaId: Id): Promise<T.Ayuda>;
   terminar(intentoId: Id): Promise<T.FinIntento>;
   abrirCofre(id: Id): Promise<T.CofreAbierto>;
@@ -120,6 +121,13 @@ export const apiHttp: Api = {
   camino: (c) => pedir("GET", `/juego/cursos/${c}/camino`),
   iniciarNivel: (n) => pedir("POST", `/juego/niveles/${n}/iniciar`),
   responder: (i, e) => pedir("POST", `/juego/intentos/${i}/responder`, e),
+  revisarRespuesta: (i, pregunta_id, respuesta, imagen) => {
+    const fd = new FormData();
+    fd.append("pregunta_id", String(pregunta_id));
+    fd.append("respuesta", respuesta);
+    if (imagen) fd.append("imagen", imagen, imagen.name);
+    return pedir("POST", `/juego/intentos/${i}/revisar`, fd);
+  },
   ayuda: (i, p) => pedir("POST", `/juego/intentos/${i}/ayuda`, { pregunta_id: p }),
   terminar: (i) => pedir("POST", `/juego/intentos/${i}/terminar`),
   abrirCofre: (id) => pedir("POST", `/juego/cofres/${id}/abrir`),
