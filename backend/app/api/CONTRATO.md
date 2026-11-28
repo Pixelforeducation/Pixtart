@@ -75,7 +75,7 @@ el jugador se autoevalúa con la explicación, o pide feedback con IA).
 | GET | /juego/cursos/{id}/camino | — | `{secciones: [{id, titulo, niveles: [{id, titulo, estado: "bloqueado"\|"disponible"\|"actual"\|"completado", tipo: "calentamiento"\|"leccion"\|"cofre"}]}]}` |
 | POST | /juego/niveles/{id}/iniciar | — | `{intento_id, preguntas: [PreguntaJugable]}` (sin respuesta correcta) |
 | POST | /juego/intentos/{id}/responder | `{pregunta_id, respuesta, tiempo_ms}` | `{correcta, respuesta_correcta, explicacion, vidas, mascota: EstadoMascota, xp_ganada}` |
-| POST | /juego/intentos/{id}/revisar | multipart: `pregunta_id`, `respuesta`, `imagen?` | `{retroalimentacion}` (requiere API key BYOK; imagen JPG/PNG/WebP ≤ 5 MB, solo para `math_problem`) |
+| POST | /juego/intentos/{id}/revisar | multipart: `pregunta_id`, `respuesta`, `imagen` | `{retroalimentacion}` (requiere API key BYOK; foto JPG/PNG/WebP ≤ 5 MB en `open`, `fill_code`, `numeric`, `math_problem` y `proof`) |
 | POST | /juego/intentos/{id}/ayuda | `{pregunta_id}` | `{tipo_ayuda, datos}` (p. ej. `{"eliminar_opcion": 2}`); 409 si no hay ayuda disponible |
 | POST | /juego/intentos/{id}/terminar | — | `{xp_ganada, monedas, drop?: Item, cofre?: Cofre, perfecto: bool, vidas}` |
 | POST | /juego/cofres/{id}/abrir | — | `{items: [Item], monedas}` |

@@ -7,8 +7,6 @@ import { Temporizador } from "../components/Temporizador";
 import { Mascota } from "../components/Mascota";
 
 const mc: PreguntaJugable = { id: 1, tipo: "multiple_choice", enunciado: "¿Qué pigmento?", opciones: ["Hemoglobina", "Clorofila", "Melanina"], dificultad: 2, tiempo_s: 30 };
-const abierta: PreguntaJugable = { id: 2, tipo: "open", enunciado: "Explica tu respuesta.", dificultad: 2, tiempo_s: 30, explicacion: "Una explicación breve." };
-const matematica: PreguntaJugable = { id: 3, tipo: "math_problem", enunciado: "Resuelve 6 × 7.", dificultad: 2, tiempo_s: 900, explicacion: "6 × 7 = 42." };
 
 describe("Pregunta de opción múltiple", () => {
   it("responde con el índice elegido", async () => {
@@ -36,28 +34,60 @@ describe("Pregunta de opción múltiple", () => {
   });
 });
 
-describe("Preguntas abiertas", () => {
-  it("muestra el recuadro de respuesta y permite enviarla a revisión", async () => {
-    const onRevisar = vi.fn(async () => "Buen razonamiento.");
-    render(<PreguntaVista pregunta={abierta} onResponder={() => {}} onRevisar={onRevisar} />);
-    const u = userEvent.setup();
-    const campo = screen.getByRole("textbox", { name: "Escribe tu respuesta o procedimiento" });
-    await u.type(campo, "Mi respuesta");
-    await u.click(screen.getByRole("button", { name: "Enviar para revisión" }));
-    expect(onRevisar).toHaveBeenCalledWith("Mi respuesta", undefined);
-    expect(await screen.findByText("Buen razonamiento.")).toBeInTheDocument();
-  });
+describe("Adjuntar foto en preguntas", () => {
+  it.each(["open", "fill_code", "numeric", "math_problem", "proof"] as const)(
+    "muestra el recuadro de foto en %s",
+    (tipo) => {
+      const pregunta: PreguntaJugable = {
+        id: `foto-${tipo}`,
+        tipo,
+        enunciado: "Resuelve el ejercicio.",
+        opciones: null,
+        dificultad: 2,
+        tiempo_s: 30,
+        explicacion: "Explicación",
+      };
+      render(<PreguntaVista pregunta={pregunta} onResponder={() => {}} onRevisar={async () => ""} />);
+      expect(screen.getByRole("button", { name: "Agregar foto" })).toBeInTheDocument();
+    },
+  );
 
-  it("permite pegar una imagen en problemas matemáticos y enviarla para revisión", async () => {
-    const onRevisar = vi.fn(async () => "El procedimiento está correcto.");
-    render(<PreguntaVista pregunta={matematica} onResponder={() => {}} onRevisar={onRevisar} />);
-    const archivo = new File(["imagen"], "procedimiento.png", { type: "image/png" });
-    fireEvent.paste(screen.getByRole("textbox", { name: "Escribe tu respuesta o procedimiento" }), {
-      clipboardData: { items: [{ type: "image/png", getAsFile: () => archivo }] },
+  it("permite pegar, previsualizar y enviar la foto para revisión", async () => {
+    const pregunta: PreguntaJugable = {
+      id: "abierta-foto",
+      tipo: "open",
+      enunciado: "Resuelve el ejercicio.",
+      opciones: null,
+      dificultad: 2,
+      tiempo_s: 30,
+      explicacion: "Explicación",
+    };
+    const imagen = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "captura.png", {
+      type: "image/png",
     });
-    await userEvent.click(screen.getByRole("button", { name: "Enviar para revisión" }));
-    expect(onRevisar).toHaveBeenCalledWith("", archivo);
-    expect(await screen.findByText("El procedimiento está correcto.")).toBeInTheDocument();
+    const onRevisar = vi.fn().mockResolvedValue("Buen procedimiento.");
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:foto"),
+      revokeObjectURL: vi.fn(),
+    });
+    const { unmount } = render(<PreguntaVista pregunta={pregunta} onResponder={() => {}} onRevisar={onRevisar} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Escribe tu respuesta o procedimiento"), "Mi solución");
+    await user.click(screen.getByRole("button", { name: "Agregar foto" }));
+    const zona = document.querySelector(".jg-foto-zona");
+    expect(zona).toHaveFocus();
+    const pegar = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pegar, "clipboardData", {
+      value: { items: [{ type: "image/png", getAsFile: () => imagen }] },
+    });
+    fireEvent(zona!, pegar);
+    expect(await screen.findByAltText("Vista previa de la foto")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Enviar foto" }));
+    expect(onRevisar).toHaveBeenCalledWith("Mi solución", imagen);
+    expect(await screen.findByText("Buen procedimiento.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    unmount();
+    vi.unstubAllGlobals();
   });
 });
 

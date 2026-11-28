@@ -29,7 +29,7 @@ export interface Api {
   camino(cursoId: Id): Promise<T.Camino>;
   iniciarNivel(nivelId: Id): Promise<T.IntentoIniciado>;
   responder(intentoId: Id, e: { pregunta_id: Id; respuesta: T.RespuestaPregunta | null; tiempo_ms: number }): Promise<T.ResultadoRespuesta>;
-  revisarRespuesta(intentoId: Id, preguntaId: Id, respuesta: string, imagen?: File): Promise<{ retroalimentacion: string }>;
+  revisarRespuesta(intentoId: Id, preguntaId: Id, respuesta: string, imagen: File): Promise<{ retroalimentacion: string }>;
   ayuda(intentoId: Id, preguntaId: Id): Promise<T.Ayuda>;
   terminar(intentoId: Id): Promise<T.FinIntento>;
   abrirCofre(id: Id): Promise<T.CofreAbierto>;
@@ -125,7 +125,7 @@ export const apiHttp: Api = {
     const fd = new FormData();
     fd.append("pregunta_id", String(pregunta_id));
     fd.append("respuesta", respuesta);
-    if (imagen) fd.append("imagen", imagen, imagen.name);
+    fd.append("imagen", imagen, imagen.name);
     return pedir("POST", `/juego/intentos/${i}/revisar`, fd);
   },
   ayuda: (i, p) => pedir("POST", `/juego/intentos/${i}/ayuda`, { pregunta_id: p }),

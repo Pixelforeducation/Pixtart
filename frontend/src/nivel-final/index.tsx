@@ -15,6 +15,7 @@ import { PreguntaVista } from "../components/Pregunta";
 import { Sprite } from "../components/Sprite";
 import { Temporizador } from "../components/Temporizador";
 import { mensajeError } from "../lib/validacion";
+import { guardarPartidaActiva, limpiarPartidaActiva } from "../lib/partidaActiva";
 import { useAlOcultar } from "../lib/alOcultar";
 import { guardarSonido, musica, sonidoGuardado, tocar, type Efecto } from "./audio";
 import { crearApiDemo, type ApiFinal } from "./demo";
@@ -129,6 +130,7 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
       const it = r as IntentoFinal;
       const inf = infoDesde(it);
       pendiente.current = it.intento_id;
+      if (!demo) guardarPartidaActiva("final", nivelId, cursoId);
       let p: ProgresoFinal = inf;
       const pr = it.reanudado ? it.progreso : null;
       if (pr && pr.respondidas.length > 0) {
@@ -242,6 +244,7 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
     try {
       const f = (await api.terminar(intento.intento_id)) as FinFinal;
       pendiente.current = null;
+      limpiarPartidaActiva();
       setFin(f);
       setFase("fin");
     } catch (e) {
@@ -372,7 +375,10 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
   useEffect(() => { musica(sonido && jugando, furia); }, [sonido, jugando, furia]);
   useEffect(() => () => musica(false), []);
 
-  const volver = () => nav(demo ? "/" : "/");
+  const volver = () => {
+    limpiarPartidaActiva();
+    nav("/");
+  };
 
   // Escape abre el diálogo de salir; teclado completo para el resto vía botones.
   useEffect(() => {
@@ -499,7 +505,14 @@ export default function NivelFinal({ modoInicial, api: apiProp }: PropsNivelFina
           {fase === "avanzando" ? (
             <p className="nf-avanza">Avanzando…</p>
           ) : (
-            <PreguntaVista key={pregunta.id} pregunta={pregunta} resultado={resultado} onResponder={(r) => void responder(r)} enviando={fase === "resolviendo"} />
+            <PreguntaVista key={pregunta.id} pregunta={pregunta} resultado={resultado}
+              onResponder={(r) => void responder(r)}
+              onRevisar={async (respuesta, imagen) => {
+                if (!intento) throw new Error("No hay una partida activa para revisar.");
+                const revision = await api.revisarRespuesta(intento.intento_id, pregunta.id, respuesta, imagen);
+                return revision.retroalimentacion;
+              }}
+              enviando={fase === "resolviendo"} />
           )}
           {error && <p className="error" role="alert">{error}</p>}
           {fase === "feedback" && resultado && (

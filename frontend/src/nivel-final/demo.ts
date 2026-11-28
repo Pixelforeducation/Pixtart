@@ -5,7 +5,7 @@
 import type { Api, PreguntaJugable, RespuestaPregunta } from "../api";
 import { calcularProgreso, planEncuentros, requeridas, type FinFinal, type IntentoFinal, type RespuestaFinal } from "./logica";
 
-export type ApiFinal = Pick<Api, "iniciarNivel" | "responder" | "terminar" | "abrirCofre" | "camino">;
+export type ApiFinal = Pick<Api, "iniciarNivel" | "responder" | "revisarRespuesta" | "terminar" | "abrirCofre" | "camino">;
 
 interface PreguntaDemo {
   p: PreguntaJugable;
@@ -78,6 +78,9 @@ export function crearApiDemo(g = 70, preguntas: PreguntaDemo[] = PREGUNTAS_DEMO)
       const correcta = corregir(d, e.respuesta);
       resueltas.set(String(e.pregunta_id), correcta);
       return { correcta, respuesta_correcta: d.correcta, explicacion: d.explicacion, vidas: 10, mascota: null, xp_ganada: correcta ? 10 : 0, final: progreso() };
+    },
+    async revisarRespuesta(_id, _preguntaId, _respuesta, _imagen) {
+      return { retroalimentacion: "Revisión de demostración: compara tu procedimiento con la explicación." };
     },
     async terminar(): Promise<FinFinal> {
       const p = progreso();

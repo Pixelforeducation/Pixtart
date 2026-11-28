@@ -15,6 +15,7 @@ import { FinNivel } from "../components/juego/FinNivel";
 import { CapaParticulas, alAzar, esCasi, momentos, pausa, siguienteRacha, tocar, useContador, useEfectos } from "../efectos";
 import { mensajeError } from "../lib/validacion";
 import { useAlOcultar } from "../lib/alOcultar";
+import { guardarPartidaActiva, limpiarPartidaActiva } from "../lib/partidaActiva";
 import { musica } from "../escenas/musica";
 import "../components/juego/juego.css";
 
@@ -161,6 +162,7 @@ export function Jugar() {
     api.iniciarNivel(nivelId).then((r) => {
       if (!vivo) return;
       pendiente.current = r.intento_id;
+      guardarPartidaActiva("jugar", nivelId, cursoId);
       setIntento(r); setMarcas(r.preguntas.map(() => null)); inicio.current = Date.now();
       if (r.reanudado && r.progreso) {
         const p = restaurarProgreso(r.preguntas, r.progreso);
@@ -175,6 +177,7 @@ export function Jugar() {
           api.terminar(r.intento_id).then((f) => {
             if (!vivo) return;
             pendiente.current = null;
+            limpiarPartidaActiva();
             setFin(f);
             void refrescar();
           }).catch((e) => vivo && setError(mensajeError(e)));
@@ -346,6 +349,7 @@ export function Jugar() {
       tocar("whoosh");
       const f = await api.terminar(intento.intento_id);
       pendiente.current = null;
+      limpiarPartidaActiva();
       setFin(f);
       void refrescar();
     } catch (e) {
@@ -378,7 +382,7 @@ export function Jugar() {
   const volver = cursoId ? `/?curso=${cursoId}` : "/";
   const capas = <><CapaParticulas /><Cortinilla estado={cortina} /></>;
 
-  if (error && !intento) return <><p className="error" role="alert">{error}</p><Link to={volver} className="boton secundario">Volver al camino</Link></>;
+  if (error && !intento) return <><p className="error" role="alert">{error}</p><Link to={volver} className="boton secundario" onClick={limpiarPartidaActiva}>Volver al camino</Link></>;
   if (!intento) return <div className="jg-nivel">{capas}<p className="jg-cargando">Preparando el nivel…</p></div>;
 
   if (fin) {
@@ -404,7 +408,7 @@ export function Jugar() {
       {capas}
       <header className="hud jg-hud" role="region" aria-label="Estado del nivel">
         <div className="jg-hud-fila">
-          <Link to={volver} className="jg-salir" aria-label="Salir al camino">✕</Link>
+          <Link to={volver} className="jg-salir" aria-label="Salir al camino" onClick={limpiarPartidaActiva}>✕</Link>
           <Progreso marcas={marcas} actual={idx} />
           <span className="jg-hud-cuenta">{idx + 1}/{total}</span>
           <BotonSonido />

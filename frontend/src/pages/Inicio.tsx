@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import type { Camino, CofreAbierto, CursoResumen, EtapaMascota, Equipo, NodoCamino } from "../api";
 import { useApi, useEstadoJuego } from "../contexto";
 import { Candado } from "../components/Iconos";
@@ -11,6 +11,7 @@ import { musica, useMusica } from "../escenas/musica";
 import { sonar } from "../escenas/sonido";
 import { CofreVisual, HeroeVisual, IconoUI, ItemVisual, MascotaVisual } from "../escenas/visuales";
 import { mensajeError } from "../lib/validacion";
+import { obtenerRutaPartidaActiva } from "../lib/partidaActiva";
 
 type TipoVisual = NodoCamino["tipo"];
 const tipoDe = (n: NodoCamino): TipoVisual => n.tipo;
@@ -383,4 +384,9 @@ export function Inicio() {
       {elegido && camino && <CaminoVista camino={camino} cursoId={elegido} onCofre={abrirCofre} actores={{ tier, especie, equipo: estado?.equipo ?? null, etapa: estado?.mascota?.etapa }} />}
     </Escena>
   );
+}
+
+export function InicioConPartida() {
+  const rutaPartida = obtenerRutaPartidaActiva();
+  return rutaPartida ? <Navigate to={rutaPartida} replace /> : <Inicio />;
 }

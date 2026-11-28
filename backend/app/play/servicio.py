@@ -32,7 +32,7 @@ from app.game.seleccion import (
     motor_para,
 )
 from app.game.tiempo import tiempo_limite
-from app.game.tipos import TIPOS_ABIERTOS, AccionInvalida, Pregunta, TipoPregunta
+from app.game.tipos import TIPOS_ABIERTOS, AccionInvalida, Pregunta
 from app.keys import service as keys
 from app.keys.validador import MODELO_POR_DEFECTO
 from app.models.juego import (
@@ -46,7 +46,6 @@ from app.models.usuarios import Usuario
 from app.play import final, ids, serial
 from app.play.fuente_cursos import CaminoCurso, FuenteCursos, NivelInfo, PreguntaFuente
 from app.play.pista import ErrorPista, GeneradorPista
-from app.play.revision import ErrorRevision, GeneradorRevision
 
 PREGUNTAS_POR_NIVEL = 10
 MARGEN_SERVIDOR_S = 2
@@ -126,7 +125,6 @@ class Juego:
         ahora: datetime,
         rng: random.Random,
         generador: GeneradorPista | None = None,
-        revisor: GeneradorRevision | None = None,
     ):
         self.db = db
         self.usuario = usuario
@@ -134,7 +132,6 @@ class Juego:
         self.ahora = ahora
         self.rng = rng
         self.generador = generador
-        self.revisor = revisor
         self._cargar()
 
     # ------------------------------------------------------------ estado
@@ -832,60 +829,6 @@ class Juego:
         if it.es_final:
             salida["final"] = self._progreso_final(it)
         return salida
-
-    def revisar_respuesta(
-        self,
-        intento_id: str,
-        pregunta_id: str,
-        respuesta: str,
-        imagen_mime: str | None,
-        imagen: bytes | None,
-    ) -> dict[str, str]:
-        it = self._intento(intento_id)
-        _, entrada = self._entrada(it, pregunta_id)
-        if entrada["respondida"]:
-            raise AccionInvalida("Esa pregunta ya fue respondida.")
-        p = self._pregunta(entrada).pregunta
-        if p.tipo not in TIPOS_ABIERTOS:
-            raise AccionInvalida("La revisión con IA solo está disponible en preguntas abiertas.")
-        if imagen is not None and p.tipo is not TipoPregunta.MATH_PROBLEM:
-            raise AccionInvalida("Solo puedes adjuntar imágenes en problemas matemáticos.")
-        if not respuesta.strip() and imagen is None:
-            raise AccionInvalida("Escribe una respuesta o adjunta una imagen para revisarla.")
-        if self.revisor is None:
-            raise AccionInvalida("La revisión con IA no está disponible.")
-
-        key = keys.obtener_key_descifrada(self.db, self.usuario.id)
-        if not key:
-            raise AccionInvalida(
-                "Conecta tu API key de Anthropic en Ajustes para pedir una revisión."
-            )
-        try:
-            keys.verificar_limite(self.db, self.usuario.id, ahora=self.ahora)
-        except keys.LimiteExcedido as e:
-            raise AccionInvalida(e.mensaje) from e
-        modelo = (
-            keys.obtener_modelo(self.db, self.usuario.id)
-            or MODELO_POR_DEFECTO["anthropic"]
-        )
-        try:
-            revision = self.revisor.revisar(key, modelo, p, respuesta, imagen_mime, imagen)
-        except ErrorRevision as e:
-            if e.key_rechazada:
-                keys.marcar_key_invalida(self.db, self.usuario.id)
-            raise AccionInvalida(e.mensaje) from e
-
-        try:
-            keys.registrar_uso(
-                self.db,
-                self.usuario.id,
-                revision.tokens_entrada,
-                revision.tokens_salida,
-                ahora=self.ahora,
-            )
-        except keys.LimiteExcedido:
-            pass
-        return {"retroalimentacion": revision.texto}
 
     @staticmethod
     def _progreso_final(it: IntentoNivel) -> dict[str, Any]:

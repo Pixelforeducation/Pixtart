@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState, useSyncExt
 import { apiPorDefecto, type Api, type Estado } from "./api";
 import { alCambiarToken, guardarToken, obtenerToken } from "./api/sesion";
 import { aplicarPaleta } from "./theme/paleta";
+import { limpiarPartidaActiva } from "./lib/partidaActiva";
 
 const ApiCtx = createContext<Api>(apiPorDefecto);
 export const useApi = () => useContext(ApiCtx);
@@ -12,7 +13,11 @@ export function ProveedorApi({ api, children }: { api?: Api; children: ReactNode
 
 export function useSesion() {
   const token = useSyncExternalStore(alCambiarToken, obtenerToken, obtenerToken);
-  return { token, entrar: (t: string) => guardarToken(t), salir: () => guardarToken(null) };
+  return {
+    token,
+    entrar: (t: string) => { limpiarPartidaActiva(); guardarToken(t); },
+    salir: () => { limpiarPartidaActiva(); guardarToken(null); },
+  };
 }
 
 interface CtxEstado {

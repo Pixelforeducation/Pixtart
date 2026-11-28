@@ -7,7 +7,8 @@ import { mensajeError } from "../lib/validacion";
 import { agregarPdfs, MAX_ARCHIVOS, problemaLista, tamanoLegible } from "../lib/pdfs";
 
 export { MAX_PDF } from "../lib/pdfs";
-const MIN_POR_DEFECTO: Partial<Record<TipoPregunta, number>> = { math_problem: 15, proof: 15 };
+const TIPOS_CURSO = TIPOS_PREGUNTA.filter((t) => t !== "math_problem" && t !== "proof");
+const MIN_POR_DEFECTO: Partial<Record<TipoPregunta, number>> = { open: 15 };
 
 export interface FormCurso {
   titulo: string;
@@ -174,11 +175,11 @@ export function CrearCurso() {
         <fieldset>
           <legend>Tipos de pregunta y tiempo por pregunta</legend>
           <p className="ayuda-campo">Las preguntas se reparten de forma equilibrada entre los tipos que marques. Deja el tiempo vacío para calcularlo automáticamente.</p>
-          {TIPOS_PREGUNTA.map((t) => (
+          {TIPOS_CURSO.map((t) => (
             <div key={t} className="fila" style={{ justifyContent: "space-between" }}>
               <label className="casilla" htmlFor={`tipo-${t}`}>
                 <input id={`tipo-${t}`} type="checkbox" checked={f.tipos.includes(t)} onChange={() => alternarTipo(t)} />
-                {NOMBRE_TIPO[t]}
+                {t === "open" ? "Abierta (incluye problemas matemáticos y demostraciones)" : NOMBRE_TIPO[t]}
               </label>
               {f.tipos.includes(t) && (
                 <span className="fila" style={{ gap: 4 }}>

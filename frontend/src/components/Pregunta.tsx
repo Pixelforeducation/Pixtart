@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Ayuda, PreguntaJugable, RespuestaPregunta, ResultadoRespuesta, TipoPregunta } from "../api";
+import { FotoRespuesta } from "./FotoRespuesta";
 
 export const ABIERTAS: TipoPregunta[] = ["open", "math_problem", "proof"];
 
@@ -26,7 +27,7 @@ interface Props {
   ayudas?: Ayuda[];
   resultado?: ResultadoRespuesta | null;
   onResponder: (r: RespuestaPregunta) => void;
-  onRevisar?: (respuesta: string, imagen?: File) => Promise<string>;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
   enviando?: boolean;
   /** false cuando el enunciado lo muestra otro (p. ej. el globo del anfitrión en la escena). */
   mostrarEnunciado?: boolean;
@@ -52,14 +53,16 @@ export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onRespo
           correcta={resultado ? (resultado.respuesta_correcta ? 0 : 1) : null} onResponder={(i) => onResponder(i === 0)} />
       )}
       {(pregunta.tipo === "fill_text" || pregunta.tipo === "fill_code") && (
-        <Completar codigo={pregunta.tipo === "fill_code"} revelar={ay.revelar} bloqueada={bloqueada} onResponder={onResponder} />
+        <Completar codigo={pregunta.tipo === "fill_code"} revelar={ay.revelar} bloqueada={bloqueada}
+          onResponder={onResponder} onRevisar={onRevisar} />
       )}
-      {pregunta.tipo === "numeric" && <Numerica intervalo={ay.intervalo} bloqueada={bloqueada} onResponder={onResponder} />}
+      {pregunta.tipo === "numeric" && <Numerica intervalo={ay.intervalo} bloqueada={bloqueada}
+        onResponder={onResponder} onRevisar={onRevisar} />}
       {pregunta.tipo === "ordering" && (
         <Ordenar opciones={pregunta.opciones ?? []} fijos={ay.fijos} bloqueada={bloqueada} semilla={String(pregunta.id)} onResponder={onResponder} />
       )}
       {ABIERTAS.includes(pregunta.tipo) && (
-        <Abierta tipo={pregunta.tipo} explicacion={pregunta.explicacion ?? null} bloqueada={bloqueada}
+        <Abierta id={String(pregunta.id)} explicacion={pregunta.explicacion ?? null} bloqueada={bloqueada}
           onResponder={onResponder} onRevisar={onRevisar} />
       )}
     </section>
@@ -137,7 +140,13 @@ function Opciones({ opciones, eliminadas, bloqueada, correcta, onResponder, vf =
   );
 }
 
-function Completar({ codigo, revelar, bloqueada, onResponder }: { codigo: boolean; revelar: string | null; bloqueada: boolean; onResponder: (r: string) => void }) {
+function Completar({ codigo, revelar, bloqueada, onResponder, onRevisar }: {
+  codigo: boolean;
+  revelar: string | null;
+  bloqueada: boolean;
+  onResponder: (r: string) => void;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
+}) {
   const [v, setV] = useState("");
   return (
     <form onSubmit={(e) => { e.preventDefault(); if (v.trim()) onResponder(v.trim()); }}>
@@ -145,12 +154,18 @@ function Completar({ codigo, revelar, bloqueada, onResponder }: { codigo: boolea
       <input id="resp-completar" type="text" value={v} onChange={(e) => setV(e.target.value)} disabled={bloqueada}
         autoComplete="off" spellCheck={!codigo} style={codigo ? { fontFamily: "ui-monospace, monospace" } : undefined} />
       {revelar && <p className="ayuda-campo" role="status">Ayuda: empieza por «{revelar}»</p>}
+      {codigo && <FotoRespuesta id="foto-codigo" respuesta={v} bloqueada={bloqueada} onRevisar={onRevisar} />}
       {!bloqueada && <p className="jg-acciones"><button className="boton jg-responder" disabled={!v.trim()}>Responder</button></p>}
     </form>
   );
 }
 
-function Numerica({ intervalo, bloqueada, onResponder }: { intervalo: [number, number] | null; bloqueada: boolean; onResponder: (r: number) => void }) {
+function Numerica({ intervalo, bloqueada, onResponder, onRevisar }: {
+  intervalo: [number, number] | null;
+  bloqueada: boolean;
+  onResponder: (r: number) => void;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
+}) {
   const [v, setV] = useState("");
   const n = Number(v.replace(",", "."));
   const okNum = v.trim() !== "" && Number.isFinite(n);
@@ -159,6 +174,7 @@ function Numerica({ intervalo, bloqueada, onResponder }: { intervalo: [number, n
       <label htmlFor="resp-num">Tu respuesta (número)</label>
       <input id="resp-num" type="text" inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} disabled={bloqueada} autoComplete="off" />
       {intervalo && <p className="ayuda-campo" role="status">Ayuda: está entre {intervalo[0]} y {intervalo[1]}</p>}
+      <FotoRespuesta id="foto-numerica" respuesta={v} bloqueada={bloqueada} onRevisar={onRevisar} />
       {!bloqueada && <p className="jg-acciones"><button className="boton jg-responder" disabled={!okNum}>Responder</button></p>}
     </form>
   );
@@ -234,104 +250,29 @@ export function Ordenar({ opciones, fijos, bloqueada, semilla, onResponder }: {
   );
 }
 
-function Abierta({ tipo, explicacion, bloqueada, onResponder, onRevisar }: {
-  tipo: TipoPregunta;
+function Abierta({ id, explicacion, bloqueada, onResponder, onRevisar }: {
+  id: string;
   explicacion: string | null;
   bloqueada: boolean;
   onResponder: (r: boolean) => void;
-  onRevisar?: (respuesta: string, imagen?: File) => Promise<string>;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
 }) {
   const [texto, setTexto] = useState("");
   const [visto, setVisto] = useState(false);
-  const [imagen, setImagen] = useState<File | null>(null);
-  const [retroalimentacion, setRetroalimentacion] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [revisando, setRevisando] = useState(false);
-  const vistaImagen = useMemo(
-    () => imagen && typeof URL.createObjectURL === "function" ? URL.createObjectURL(imagen) : null,
-    [imagen],
-  );
-  useEffect(() => () => { if (vistaImagen) URL.revokeObjectURL(vistaImagen); }, [vistaImagen]);
 
-  const elegirImagen = (archivo: File | undefined) => {
-    if (archivo && archivo.size > 5 * 1024 * 1024) {
-      setError("La foto no puede superar los 5 MB.");
-    } else if (archivo && ["image/jpeg", "image/png", "image/webp"].includes(archivo.type)) {
-      setImagen(archivo);
-      setError(null);
-    } else if (archivo) {
-      setError("Usa una imagen JPG, PNG o WebP.");
-    }
-  };
-  const pegarImagen = (e: ClipboardEvent<HTMLTextAreaElement>) => {
-    if (tipo !== "math_problem") return;
-    const archivo = Array.from(e.clipboardData.items)
-      .find((item) => item.type.startsWith("image/"))?.getAsFile();
-    if (archivo) {
-      e.preventDefault();
-      elegirImagen(archivo);
-    }
-  };
-  const revisar = async () => {
-    if (!onRevisar || revisando || (!texto.trim() && !imagen)) return;
-    setRevisando(true);
-    setError(null);
-    try {
-      setRetroalimentacion(await onRevisar(texto.trim(), imagen ?? undefined));
-      setVisto(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo revisar la respuesta.");
-    } finally {
-      setRevisando(false);
-    }
-  };
 
   return (
     <div className="jg-abierta">
       <label htmlFor="resp-abierta">Escribe tu respuesta o procedimiento</label>
       <textarea id="resp-abierta" value={texto} onChange={(e) => setTexto(e.target.value)}
-        onPaste={pegarImagen} disabled={visto || bloqueada || revisando} rows={6}
+        disabled={visto || bloqueada} rows={6}
         maxLength={12000}
         placeholder="Escribe aquí tu respuesta..." />
-      {tipo === "math_problem" && !visto && !bloqueada && (
-        <div className="jg-foto-acciones">
-          <label htmlFor="foto-procedimiento" className="boton secundario jg-foto-boton">
-            <svg aria-hidden="true" viewBox="0 0 16 16" width="16" height="16" shapeRendering="crispEdges">
-              <path fill="currentColor" d="M2 4h3l1-2h4l1 2h3v10H2z" />
-              <path fill="var(--c-madera)" d="M3 5h10v8H3zM7 3h2v1H7z" />
-              <path fill="currentColor" d="M6 6h4v1H6zM5 7h1v3H5zM10 7h1v3h-1zM6 10h4v1H6z" />
-            </svg>
-            Adjuntar foto
-          </label>
-          <input id="foto-procedimiento" type="file" accept="image/jpeg,image/png,image/webp"
-            className="sr-only" onChange={(e) => { elegirImagen(e.target.files?.[0]); e.target.value = ""; }} />
-          <span className="ayuda-campo">También puedes pegar una imagen en el recuadro.</span>
-        </div>
-      )}
-      {imagen && vistaImagen && (
-        <figure className="jg-foto-vista">
-          <img src={vistaImagen} alt="Procedimiento adjunto" />
-          {!visto && !bloqueada && <button type="button" className="boton chico secundario"
-            onClick={() => setImagen(null)}>Quitar foto</button>}
-        </figure>
-      )}
-      {imagen && !vistaImagen && <p className="ayuda-campo">Foto adjunta: {imagen.name}</p>}
-      {error && <p className="error" role="alert">{error}</p>}
-      {retroalimentacion && (
-        <div className="jg-revision-ia" role="status">
-          <h3>Revisión de tu procedimiento</h3>
-          <p>{retroalimentacion}</p>
-        </div>
-      )}
+      <FotoRespuesta id={`foto-abierta-${id}`} respuesta={texto} bloqueada={bloqueada || visto}
+        onRevisar={onRevisar} />
       {!visto ? (
-        <div className="jg-acciones">
-          {onRevisar && <button type="button" className="boton jg-responder"
-            disabled={bloqueada || revisando || (!texto.trim() && !imagen)} onClick={() => void revisar()}>
-            {revisando ? "Revisando…" : "Enviar para revisión"}
-          </button>}
-          <button type="button" className="boton secundario" disabled={revisando}
-            onClick={() => setVisto(true)}>Ver explicación</button>
-        </div>
+        <p style={{ marginTop: 12 }}><button type="button" className="boton" disabled={bloqueada}
+          onClick={() => setVisto(true)}>Ver explicación</button></p>
       ) : (
         <div className="panel oscuro" style={{ marginTop: 12 }}>
           <h3>Explicación</h3>
