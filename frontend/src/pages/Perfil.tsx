@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ErrorApi, type Equipo, type Estado, type EtapaMascota, type Ranura } from "../api";
 import { useApi, useEstadoJuego } from "../contexto";
+import { Sprite } from "../arte";
 import { Candado, Escudo } from "../components/Iconos";
 import { nombreItem } from "../components/ItemIcono";
 import { BarraEvolucion, Mascota } from "../components/Mascota";
@@ -13,9 +14,11 @@ import { sonar } from "../escenas/sonido";
 import { HeroeVisual, IconoUI, ItemVisual, MascotaVisual } from "../escenas/visuales";
 import { PALETAS, aplicarPaleta } from "../theme/paleta";
 import { mensajeError } from "../lib/validacion";
+import { JEFES, JEFE_LEGENDARIO, monstruoPara } from "../nivel-final/sprites";
 import { VistaEquipo } from "./Tienda";
 
 const USABLES = new Set(["botiquin", "pocion_resurreccion", "comida", "escudo"]);
+const JEFES_FINALES = [...JEFES, JEFE_LEGENDARIO];
 const nombreTier = (t: number) => NOMBRES_TIER[Math.max(0, Math.min(5, t - 1))];
 const RAREZA_EQUIPABLE: Record<string, "comun" | "rara" | "legendaria"> = {
   arma_baculo: "rara", arma_martillo: "rara", arma_katana: "legendaria",
@@ -81,6 +84,35 @@ export function Perfil() {
   const { estado, poner, refrescar } = useEstadoJuego();
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [jefesDesbloqueados, setJefesDesbloqueados] = useState<Set<string> | null>(null);
+  const [errorJefes, setErrorJefes] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vivo = true;
+    const cargarJefes = async () => {
+      try {
+        const cursos = (await api.listarCursos()).filter((curso) => curso.estado === "publicado");
+        const caminos = await Promise.all(cursos.map((curso) => api.camino(curso.id)));
+        const desbloqueados = new Set<string>();
+        for (const camino of caminos) {
+          camino.secciones.forEach((seccion, indice) => {
+            const jefeDisponible = seccion.niveles.some(
+              (nivel) => nivel.tipo === "final" && nivel.estado !== "bloqueado",
+            );
+            if (jefeDisponible) {
+              const esUltima = indice === camino.secciones.length - 1;
+              desbloqueados.add(monstruoPara("jefe", 0, indice, esUltima).id);
+            }
+          });
+        }
+        if (vivo) setJefesDesbloqueados(desbloqueados);
+      } catch (e) {
+        if (vivo) setErrorJefes(mensajeError(e));
+      }
+    };
+    void cargarJefes();
+    return () => { vivo = false; };
+  }, [api]);
 
   if (!estado) return <Escena bioma="perfil"><p className="placa">Cargando perfil…</p></Escena>;
 
@@ -190,6 +222,35 @@ export function Perfil() {
         <Mascota mascota={estado.mascota} onRevive={refrescar} />
         <p style={{ fontSize: 15, margin: "10px 0 0" }}>Tus mascotas ganan XP cuando aciertas seguido sin pedir ayuda y sin perder vidas.</p>
         <EvolucionMascotas estado={estado} />
+      </section>
+
+      <section className="panel oscuro" aria-labelledby="h-jefes">
+        <h2 id="h-jefes" style={{ marginTop: 0 }}>Jefes finales</h2>
+        <p>Completa los niveles de cada sección para desbloquear a su jefe final.</p>
+        {errorJefes ? (
+          <p className="error" role="alert">No se pudieron cargar los jefes finales: {errorJefes}</p>
+        ) : jefesDesbloqueados === null ? (
+          <p className="placa" role="status">Cargando jefes…</p>
+        ) : (
+          <ul className="rejilla perfil-jefes" aria-label="Catálogo de jefes finales">
+            {JEFES_FINALES.map((jefe) => {
+              const desbloqueado = jefesDesbloqueados.has(jefe.id);
+              const rareza = jefe.id === JEFE_LEGENDARIO.id ? "legendaria" : "rara";
+              return (
+                <li key={jefe.id} className={`slot perfil-jefe ${rareza} ${desbloqueado ? "" : "bloqueado"}`}
+                  aria-label={`${jefe.nombre}, ${desbloqueado ? "desbloqueado" : "bloqueado"}`}>
+                  <span className="perfil-jefe-arte">
+                    <Sprite nombre={jefe.contrato} alt={jefe.nombre} escala={3}
+                      className={`perfil-jefe-sprite ${desbloqueado ? "" : "en-gris"}`} />
+                    {!desbloqueado && <span className="perfil-jefe-candado"><Candado tam={24} /></span>}
+                  </span>
+                  <strong>{jefe.nombre}</strong>
+                  <span className="perfil-jefe-estado">{desbloqueado ? "Desbloqueado" : "Bloqueado"}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </section>
 
       <section className="panel" aria-labelledby="h-inv">

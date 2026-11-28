@@ -470,6 +470,9 @@ export function crearMock(op: OpcionesMock = {}): Api & { _datos: unknown } {
       }
       return clonar({ correcta, respuesta_correcta: q.respuesta, explicacion: q.explicacion, vidas: estado.vidas, mascota: estado.mascota, xp_ganada: xp, mascota_evento });
     },
+    async revisarRespuesta(_iid, _preguntaId, _respuesta, _imagen) {
+      return { retroalimentacion: "Revisión de demostración: compara tu procedimiento con la explicación." };
+    },
     async ayuda(iid, pid) {
       const it = intentos.get(String(iid));
       const m = estado.mascota;

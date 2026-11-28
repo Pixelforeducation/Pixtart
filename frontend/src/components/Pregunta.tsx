@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { Ayuda, PreguntaJugable, RespuestaPregunta, ResultadoRespuesta, TipoPregunta } from "../api";
+import { FotoRespuesta } from "./FotoRespuesta";
 
 export const ABIERTAS: TipoPregunta[] = ["open", "math_problem", "proof"];
 
@@ -26,12 +27,13 @@ interface Props {
   ayudas?: Ayuda[];
   resultado?: ResultadoRespuesta | null;
   onResponder: (r: RespuestaPregunta) => void;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
   enviando?: boolean;
   /** false cuando el enunciado lo muestra otro (p. ej. el globo del anfitrión en la escena). */
   mostrarEnunciado?: boolean;
 }
 
-export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onResponder, enviando = false, mostrarEnunciado = true }: Props) {
+export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onResponder, onRevisar, enviando = false, mostrarEnunciado = true }: Props) {
   const ay = useMemo(() => resumirAyudas(ayudas), [ayudas]);
   const bloqueada = !!resultado || enviando;
   const titulo = useRef<HTMLParagraphElement>(null);
@@ -51,14 +53,17 @@ export function PreguntaVista({ pregunta, ayudas = [], resultado = null, onRespo
           correcta={resultado ? (resultado.respuesta_correcta ? 0 : 1) : null} onResponder={(i) => onResponder(i === 0)} />
       )}
       {(pregunta.tipo === "fill_text" || pregunta.tipo === "fill_code") && (
-        <Completar codigo={pregunta.tipo === "fill_code"} revelar={ay.revelar} bloqueada={bloqueada} onResponder={onResponder} />
+        <Completar codigo={pregunta.tipo === "fill_code"} revelar={ay.revelar} bloqueada={bloqueada}
+          onResponder={onResponder} onRevisar={onRevisar} />
       )}
-      {pregunta.tipo === "numeric" && <Numerica intervalo={ay.intervalo} bloqueada={bloqueada} onResponder={onResponder} />}
+      {pregunta.tipo === "numeric" && <Numerica intervalo={ay.intervalo} bloqueada={bloqueada}
+        onResponder={onResponder} onRevisar={onRevisar} />}
       {pregunta.tipo === "ordering" && (
         <Ordenar opciones={pregunta.opciones ?? []} fijos={ay.fijos} bloqueada={bloqueada} semilla={String(pregunta.id)} onResponder={onResponder} />
       )}
       {ABIERTAS.includes(pregunta.tipo) && (
-        <Abierta explicacion={pregunta.explicacion ?? null} bloqueada={bloqueada} onResponder={onResponder} />
+        <Abierta id={String(pregunta.id)} explicacion={pregunta.explicacion ?? null} bloqueada={bloqueada}
+          onResponder={onResponder} onRevisar={onRevisar} />
       )}
     </section>
   );
@@ -135,7 +140,13 @@ function Opciones({ opciones, eliminadas, bloqueada, correcta, onResponder, vf =
   );
 }
 
-function Completar({ codigo, revelar, bloqueada, onResponder }: { codigo: boolean; revelar: string | null; bloqueada: boolean; onResponder: (r: string) => void }) {
+function Completar({ codigo, revelar, bloqueada, onResponder, onRevisar }: {
+  codigo: boolean;
+  revelar: string | null;
+  bloqueada: boolean;
+  onResponder: (r: string) => void;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
+}) {
   const [v, setV] = useState("");
   return (
     <form onSubmit={(e) => { e.preventDefault(); if (v.trim()) onResponder(v.trim()); }}>
@@ -143,12 +154,18 @@ function Completar({ codigo, revelar, bloqueada, onResponder }: { codigo: boolea
       <input id="resp-completar" type="text" value={v} onChange={(e) => setV(e.target.value)} disabled={bloqueada}
         autoComplete="off" spellCheck={!codigo} style={codigo ? { fontFamily: "ui-monospace, monospace" } : undefined} />
       {revelar && <p className="ayuda-campo" role="status">Ayuda: empieza por «{revelar}»</p>}
+      {codigo && <FotoRespuesta id="foto-codigo" respuesta={v} bloqueada={bloqueada} onRevisar={onRevisar} />}
       {!bloqueada && <p className="jg-acciones"><button className="boton jg-responder" disabled={!v.trim()}>Responder</button></p>}
     </form>
   );
 }
 
-function Numerica({ intervalo, bloqueada, onResponder }: { intervalo: [number, number] | null; bloqueada: boolean; onResponder: (r: number) => void }) {
+function Numerica({ intervalo, bloqueada, onResponder, onRevisar }: {
+  intervalo: [number, number] | null;
+  bloqueada: boolean;
+  onResponder: (r: number) => void;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
+}) {
   const [v, setV] = useState("");
   const n = Number(v.replace(",", "."));
   const okNum = v.trim() !== "" && Number.isFinite(n);
@@ -157,6 +174,7 @@ function Numerica({ intervalo, bloqueada, onResponder }: { intervalo: [number, n
       <label htmlFor="resp-num">Tu respuesta (número)</label>
       <input id="resp-num" type="text" inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} disabled={bloqueada} autoComplete="off" />
       {intervalo && <p className="ayuda-campo" role="status">Ayuda: está entre {intervalo[0]} y {intervalo[1]}</p>}
+      <FotoRespuesta id="foto-numerica" respuesta={v} bloqueada={bloqueada} onRevisar={onRevisar} />
       {!bloqueada && <p className="jg-acciones"><button className="boton jg-responder" disabled={!okNum}>Responder</button></p>}
     </form>
   );
@@ -232,15 +250,29 @@ export function Ordenar({ opciones, fijos, bloqueada, semilla, onResponder }: {
   );
 }
 
-function Abierta({ explicacion, bloqueada, onResponder }: { explicacion: string | null; bloqueada: boolean; onResponder: (r: boolean) => void }) {
+function Abierta({ id, explicacion, bloqueada, onResponder, onRevisar }: {
+  id: string;
+  explicacion: string | null;
+  bloqueada: boolean;
+  onResponder: (r: boolean) => void;
+  onRevisar?: (respuesta: string, imagen: File) => Promise<string>;
+}) {
   const [texto, setTexto] = useState("");
   const [visto, setVisto] = useState(false);
+
+
   return (
-    <div>
-      <label htmlFor="resp-abierta">Tu respuesta (para ti; no se corrige sola)</label>
-      <textarea id="resp-abierta" value={texto} onChange={(e) => setTexto(e.target.value)} disabled={visto || bloqueada} rows={6} />
+    <div className="jg-abierta">
+      <label htmlFor="resp-abierta">Escribe tu respuesta o procedimiento</label>
+      <textarea id="resp-abierta" value={texto} onChange={(e) => setTexto(e.target.value)}
+        disabled={visto || bloqueada} rows={6}
+        maxLength={12000}
+        placeholder="Escribe aquí tu respuesta..." />
+      <FotoRespuesta id={`foto-abierta-${id}`} respuesta={texto} bloqueada={bloqueada || visto}
+        onRevisar={onRevisar} />
       {!visto ? (
-        <p style={{ marginTop: 12 }}><button type="button" className="boton" onClick={() => setVisto(true)}>Ver explicación</button></p>
+        <p style={{ marginTop: 12 }}><button type="button" className="boton" disabled={bloqueada}
+          onClick={() => setVisto(true)}>Ver explicación</button></p>
       ) : (
         <div className="panel oscuro" style={{ marginTop: 12 }}>
           <h3>Explicación</h3>

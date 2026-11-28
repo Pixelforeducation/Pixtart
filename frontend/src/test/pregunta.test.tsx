@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { PreguntaJugable } from "../api";
@@ -31,6 +31,63 @@ describe("Pregunta de opción múltiple", () => {
     render(<PreguntaVista pregunta={mc} onResponder={() => {}} resultado={{ correcta: false, respuesta_correcta: 1, explicacion: "", vidas: 9, mascota: null, xp_ganada: 0 }} />);
     expect(screen.getByRole("button", { name: /Clorofila/ })).toHaveClass("correcta");
     expect(screen.queryByRole("button", { name: "Responder" })).not.toBeInTheDocument();
+  });
+});
+
+describe("Adjuntar foto en preguntas", () => {
+  it.each(["open", "fill_code", "numeric", "math_problem", "proof"] as const)(
+    "muestra el recuadro de foto en %s",
+    (tipo) => {
+      const pregunta: PreguntaJugable = {
+        id: `foto-${tipo}`,
+        tipo,
+        enunciado: "Resuelve el ejercicio.",
+        opciones: null,
+        dificultad: 2,
+        tiempo_s: 30,
+        explicacion: "Explicación",
+      };
+      render(<PreguntaVista pregunta={pregunta} onResponder={() => {}} onRevisar={async () => ""} />);
+      expect(screen.getByRole("button", { name: "Agregar foto" })).toBeInTheDocument();
+    },
+  );
+
+  it("permite pegar, previsualizar y enviar la foto para revisión", async () => {
+    const pregunta: PreguntaJugable = {
+      id: "abierta-foto",
+      tipo: "open",
+      enunciado: "Resuelve el ejercicio.",
+      opciones: null,
+      dificultad: 2,
+      tiempo_s: 30,
+      explicacion: "Explicación",
+    };
+    const imagen = new File([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], "captura.png", {
+      type: "image/png",
+    });
+    const onRevisar = vi.fn().mockResolvedValue("Buen procedimiento.");
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:foto"),
+      revokeObjectURL: vi.fn(),
+    });
+    const { unmount } = render(<PreguntaVista pregunta={pregunta} onResponder={() => {}} onRevisar={onRevisar} />);
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText("Escribe tu respuesta o procedimiento"), "Mi solución");
+    await user.click(screen.getByRole("button", { name: "Agregar foto" }));
+    const zona = document.querySelector(".jg-foto-zona");
+    expect(zona).toHaveFocus();
+    const pegar = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pegar, "clipboardData", {
+      value: { items: [{ type: "image/png", getAsFile: () => imagen }] },
+    });
+    fireEvent(zona!, pegar);
+    expect(await screen.findByAltText("Vista previa de la foto")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Enviar foto" }));
+    expect(onRevisar).toHaveBeenCalledWith("Mi solución", imagen);
+    expect(await screen.findByText("Buen procedimiento.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    unmount();
+    vi.unstubAllGlobals();
   });
 });
 

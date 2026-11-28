@@ -13,7 +13,7 @@ import { Login, Registro } from "./pages/Auth";
 import { Ajustes } from "./pages/Ajustes";
 import { CrearCurso, ProgresoTrabajo } from "./pages/CrearCurso";
 import { Revision } from "./pages/Revision";
-import { Inicio } from "./pages/Inicio";
+import { InicioConPartida } from "./pages/Inicio";
 import { biomaPara, elegirAnfitrion, Jugar } from "./pages/Jugar";
 import { Perfil } from "./pages/Perfil";
 import { Tienda } from "./pages/Tienda";
@@ -177,7 +177,7 @@ export function App() {
       {/* Demostración jugable sin cuenta ni backend. */}
       <Route path="/final/demo" element={<main className="principal"><NivelFinal /></main>} />
       <Route element={<Marco />}>
-        <Route index element={<Inicio />} />
+        <Route index element={<InicioConPartida />} />
         <Route path="crear" element={<CrearCurso />} />
         <Route path="crear/progreso/:id" element={<ProgresoTrabajo />} />
         <Route path="cursos/:id/revisar" element={<Revision />} />

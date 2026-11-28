@@ -44,8 +44,8 @@ describe("validarCurso / aConfig", () => {
     expect(agregarPdfs(casi, [pdfDe("e.pdf", 20e6)]).rechazos[0]).toMatch(/100 MB/);
   });
   it("convierte minutos a segundos en tiempos_por_tipo", () => {
-    const c = aConfig({ ...base, tipos: ["multiple_choice", "proof"], minutos: { proof: "15", math_problem: "15" } });
-    expect(c.tiempos_por_tipo).toEqual({ proof: 900 });
+    const c = aConfig({ ...base, tipos: ["multiple_choice", "open"], minutos: { open: "15" } });
+    expect(c.tiempos_por_tipo).toEqual({ open: 900 });
     expect(c).not.toHaveProperty("titulo");
   });
 });
@@ -64,8 +64,10 @@ describe("CrearCurso", () => {
     const u = userEvent.setup();
     await waitFor(() => expect(screen.getByRole("button", { name: "Crear curso" })).toBeEnabled());
     await u.upload(zona(), pdf());
-    await u.click(screen.getByLabelText("Demostración"));
-    expect(screen.getByLabelText("Minutos para Demostración")).toHaveValue(15);
+    await u.click(screen.getByLabelText("Abierta (incluye problemas matemáticos y demostraciones)"));
+    expect(screen.getByLabelText("Minutos para Abierta")).toHaveValue(15);
+    expect(screen.queryByLabelText("Demostración")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Problema matemático")).not.toBeInTheDocument();
     await u.click(screen.getByRole("button", { name: "Crear curso" }));
     expect(screen.getByText("Elige cómo quieres repasar.")).toBeInTheDocument();
     expect(spy).not.toHaveBeenCalled();
@@ -75,8 +77,8 @@ describe("CrearCurso", () => {
     await waitFor(() => expect(spy).toHaveBeenCalled());
     const [archivos, config] = spy.mock.calls[0];
     expect(archivos.map((a) => a.name)).toEqual(["apuntes.pdf"]);
-    expect(config).toMatchObject({ num_preguntas: 20, dificultad: 3, repaso: "fsrs", instrucciones: "Solo capítulo 2", tiempos_por_tipo: { proof: 900 } });
-    expect(config.tipos).toEqual(["multiple_choice", "true_false", "fill_text", "ordering", "proof"]);
+    expect(config).toMatchObject({ num_preguntas: 20, dificultad: 3, repaso: "fsrs", instrucciones: "Solo capítulo 2", tiempos_por_tipo: { open: 900 } });
+    expect(config.tipos).toEqual(["multiple_choice", "true_false", "fill_text", "ordering", "open"]);
   });
 
   it("agrega y quita varios PDFs, rechaza uno demasiado grande y envía todos", async () => {

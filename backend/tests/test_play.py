@@ -22,6 +22,8 @@ from app.play.fuente_cursos import (
     SeccionInfo,
 )
 from app.play.pista import GeneradorPistaFalso
+from app.play.revision import GeneradorRevisionFalso
+from app.play.router import generador_revision
 
 T0 = datetime(2026, 11, 24, 15, 0, tzinfo=UTC)
 TIEMPO_S = 30
@@ -83,6 +85,7 @@ def entorno(client, db):
     fuente = FuenteCursosMemoria([_curso("C1", u1.id), _curso("C9", u1.id, publicado=False)])
     reloj = Reloj()
     gen = GeneradorPistaFalso("Pista de la IA")
+    revisor = GeneradorRevisionFalso("Buen procedimiento.")
 
     def usuario_test(request: Request) -> Usuario:
         uid = request.headers.get("x-usuario")
@@ -95,12 +98,13 @@ def entorno(client, db):
     app.dependency_overrides[deps.ahora] = lambda: reloj.t
     app.dependency_overrides[deps.rng] = lambda: random.Random(7)
     app.dependency_overrides[deps.generador_pista] = lambda: gen
+    app.dependency_overrides[generador_revision] = lambda: revisor
 
     class E:
         pass
 
     e = E()
-    e.client, e.db, e.reloj, e.gen, e.fuente = client, db, reloj, gen, fuente
+    e.client, e.db, e.reloj, e.gen, e.revisor, e.fuente = client, db, reloj, gen, revisor, fuente
     e.h1, e.h2 = {"x-usuario": u1.id}, {"x-usuario": u2.id}
     e.u1 = u1
     return e
@@ -296,6 +300,89 @@ def test_botiquin_y_comida(entorno):
 
 def _pregunta_de(datos, i):
     return next(p["id"] for p in datos["preguntas"] if _idx(p["id"]) == i)
+
+
+@pytest.mark.parametrize(
+    "tipo",
+    [T.OPEN, T.FILL_CODE, T.NUMERIC, T.MATH_PROBLEM, T.PROOF],
+)
+def test_revisar_permite_foto_en_tipos_con_imagen(entorno, monkeypatch, tipo):
+    e = entorno
+    curso = e.fuente.cursos["C1"]
+    curso.preguntas["C1L1"] = [
+        PreguntaFuente(
+            Pregunta(
+                f"C1L1-{i}",
+                tipo,
+                "Resuelve el ejercicio.",
+                42.0 if tipo is T.NUMERIC else ("print(42)",) if tipo is T.FILL_CODE else "42",
+                tolerancia=0.1 if tipo is T.NUMERIC else None,
+            ),
+            "Explicación",
+            TIEMPO_S,
+        )
+        for i in range(10)
+    ]
+    monkeypatch.setattr(keys, "obtener_key_descifrada", lambda db, uid: "sk-falsa")
+    monkeypatch.setattr(keys, "verificar_limite", lambda db, uid, ahora=None: None)
+    usos = []
+    monkeypatch.setattr(
+        keys, "registrar_uso", lambda db, uid, a, b, ahora=None: usos.append(a + b)
+    )
+    datos = _iniciar(e, "C1L1")
+    pregunta_id = _pregunta_de(datos, 0)
+    imagen = b"\x89PNG\r\n\x1a\n"
+    r = e.client.post(
+        f"/api/juego/intentos/{datos['intento_id']}/revisar",
+        data={"pregunta_id": pregunta_id, "respuesta": "Mi procedimiento."},
+        files={"imagen": ("procedimiento.png", imagen, "image/png")},
+        headers=e.h1,
+    )
+    assert r.status_code == 200 and r.json() == {"retroalimentacion": "Buen procedimiento."}
+    assert e.revisor.llamadas == [("claude-haiku-5-5", "Mi procedimiento.", "image/png", imagen)]
+    assert usos == [70]
+
+
+def test_revisar_rechaza_foto_en_fill_text(entorno, monkeypatch):
+    e = entorno
+    monkeypatch.setattr(keys, "obtener_key_descifrada", lambda db, uid: "sk-falsa")
+    monkeypatch.setattr(keys, "verificar_limite", lambda db, uid, ahora=None: None)
+    datos = _iniciar(e, "C1L1")
+    r = e.client.post(
+        f"/api/juego/intentos/{datos['intento_id']}/revisar",
+        data={"pregunta_id": _pregunta_de(datos, 4), "respuesta": "París"},
+        files={"imagen": ("respuesta.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+        headers=e.h1,
+    )
+    assert r.status_code == 409 and "tipo de pregunta" in r.json()["detail"]
+    assert e.revisor.llamadas == []
+
+
+def test_revisar_rechaza_firma_de_imagen_invalida(entorno):
+    e = entorno
+    datos = _iniciar(e, "C1L1")
+    r = e.client.post(
+        f"/api/juego/intentos/{datos['intento_id']}/revisar",
+        data={"pregunta_id": _pregunta_de(datos, 3), "respuesta": "Mi procedimiento."},
+        files={"imagen": ("respuesta.png", b"no es png", "image/png")},
+        headers=e.h1,
+    )
+    assert r.status_code == 415
+    assert e.revisor.llamadas == []
+
+
+def test_revisar_abierta_requiere_api_key(entorno, monkeypatch):
+    e = entorno
+    monkeypatch.setattr(keys, "obtener_key_descifrada", lambda db, uid: None)
+    datos = _iniciar(e, "C1L1")
+    r = e.client.post(
+        f"/api/juego/intentos/{datos['intento_id']}/revisar",
+        data={"pregunta_id": _pregunta_de(datos, 3), "respuesta": "Una idea."},
+        files={"imagen": ("respuesta.png", b"\x89PNG\r\n\x1a\n", "image/png")},
+        headers=e.h1,
+    )
+    assert r.status_code == 409 and "API key" in r.json()["detail"]
+    assert e.revisor.llamadas == []
 
 
 def _ayuda(e, it, pid, h=None):

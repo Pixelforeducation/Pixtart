@@ -1,6 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Jugar, restaurarProgreso } from "../pages/Jugar";
 import { guardarToken } from "../api/sesion";
@@ -11,6 +11,8 @@ import { atacante } from "../components/juego/EscenaNivel";
 import NivelFinal from "../nivel-final";
 import { crearApiDemo, type ApiFinal } from "../nivel-final/demo";
 import { renderCon } from "./utils";
+import { InicioConPartida } from "../pages/Inicio";
+import { obtenerRutaPartidaActiva } from "../lib/partidaActiva";
 
 const RUTA = { ruta: "/jugar/100?curso=1", patron: "/jugar/:nivelId" };
 
@@ -22,6 +24,22 @@ function montar(api: Api) {
           <Routes>
             <Route path={RUTA.patron} element={<Jugar />} />
             <Route path="*" element={<div>otra ruta</div>} />
+          </Routes>
+        </ProveedorEstado>
+      </ProveedorApi>
+    </MemoryRouter>,
+  );
+}
+
+function montarConSecciones(api: Api) {
+  return render(
+    <MemoryRouter initialEntries={[RUTA.ruta]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <ProveedorApi api={api}>
+        <ProveedorEstado>
+          <Routes>
+            <Route path={RUTA.patron} element={<><Jugar /><Link to="/tienda">Tienda</Link></>} />
+            <Route path="/tienda" element={<><p>Tienda</p><Link to="/">Inicio</Link></>} />
+            <Route path="/" element={<InicioConPartida />} />
           </Routes>
         </ProveedorEstado>
       </ProveedorApi>
@@ -105,6 +123,30 @@ describe("Mock v0.3: pausa y reanudación", () => {
 });
 
 describe("Jugar v0.3", () => {
+  it("pausa al ir a Tienda y al volver a Inicio retoma la pregunta y el tiempo", async () => {
+    guardarToken("t");
+    let t = 1_000_000;
+    const api = crearMock({ ahora: () => t });
+    const pausar = vi.spyOn(api, "pausar");
+    const user = userEvent.setup();
+    montarConSecciones(api);
+    await responderClorofila(user);
+    await user.click(screen.getByRole("button", { name: "Siguiente" }));
+    expect(await screen.findByText("2/2")).toBeInTheDocument();
+    expect(screen.getByText("La fotosíntesis libera oxígeno.", { selector: ".sr-only" })).toBeInTheDocument();
+    t += 8_000;
+
+    await user.click(screen.getByRole("link", { name: "Tienda" }));
+    expect(await screen.findByText("Tienda")).toBeInTheDocument();
+    expect(pausar).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole("link", { name: "Inicio" }));
+
+    expect(await screen.findByText("Partida retomada")).toBeInTheDocument();
+    expect(screen.getByText("2/2")).toBeInTheDocument();
+    expect(screen.getByText("La fotosíntesis libera oxígeno.", { selector: ".sr-only" })).toBeInTheDocument();
+    expect(screen.getByRole("timer")).toHaveAccessibleName("Tiempo restante 0:37");
+  });
+
   it("al salir con ✕ pausa la partida y al volver la retoma en la misma pregunta", async () => {
     guardarToken("t");
     const api = crearMock();
@@ -118,6 +160,7 @@ describe("Jugar v0.3", () => {
     await u.click(screen.getByRole("link", { name: "Salir al camino" }));
     expect(await screen.findByText("otra ruta")).toBeInTheDocument();
     expect(pausar).toHaveBeenCalledTimes(1);
+    expect(obtenerRutaPartidaActiva()).toBeNull();
     primero.unmount();
 
     montar(api);
